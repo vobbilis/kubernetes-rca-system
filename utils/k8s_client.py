@@ -942,3 +942,70 @@ class K8sClient:
                 return float(memory_str)
         except (ValueError, AttributeError):
             return 0.0
+            
+    def get_resource_details(self, resource_type, resource_name, namespace):
+        """
+        Get detailed information about a specific Kubernetes resource.
+        
+        Args:
+            resource_type: Type of resource (pod, deployment, service, etc.)
+            resource_name: Name of the resource
+            namespace: Namespace where the resource is located
+            
+        Returns:
+            dict: Resource details
+        """
+        if not self.connected:
+            return {"error": "Not connected to Kubernetes API"}
+        
+        try:
+            if resource_type.lower() == 'pod':
+                resource = self.core_v1.read_namespaced_pod(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'deployment':
+                resource = self.apps_v1.read_namespaced_deployment(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'service':
+                resource = self.core_v1.read_namespaced_service(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'configmap':
+                resource = self.core_v1.read_namespaced_config_map(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'secret':
+                resource = self.core_v1.read_namespaced_secret(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'persistentvolumeclaim' or resource_type.lower() == 'pvc':
+                resource = self.core_v1.read_namespaced_persistent_volume_claim(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'statefulset':
+                resource = self.apps_v1.read_namespaced_stateful_set(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'daemonset':
+                resource = self.apps_v1.read_namespaced_daemon_set(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'job':
+                resource = self.batch_v1.read_namespaced_job(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'cronjob':
+                resource = self.batch_v1.read_namespaced_cron_job(name=resource_name, namespace=namespace)
+            elif resource_type.lower() == 'ingress':
+                resource = self.networking_v1.read_namespaced_ingress(name=resource_name, namespace=namespace)
+            else:
+                return {"error": f"Unsupported resource type: {resource_type}"}
+                
+            # Convert the resource to a dictionary
+            resource_dict = self._convert_k8s_obj_to_dict(resource)
+            
+            # Add human-readable timestamps
+            if 'metadata' in resource_dict and 'creationTimestamp' in resource_dict['metadata']:
+                timestamp = resource_dict['metadata']['creationTimestamp']
+                if timestamp:
+                    created_time = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+                    now = datetime.utcnow()
+                    diff = now - created_time
+                    
+                    days = diff.days
+                    hours, remainder = divmod(diff.seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    
+                    if days > 0:
+                        resource_dict['metadata']['createdAgo'] = f"{days}d {hours}h ago"
+                    elif hours > 0:
+                        resource_dict['metadata']['createdAgo'] = f"{hours}h {minutes}m ago"
+                    else:
+                        resource_dict['metadata']['createdAgo'] = f"{minutes}m {seconds}s ago"
+            
+            return resource_dict
+        except Exception as e:
+            return {"error": f"Failed to get {resource_type}/{resource_name}: {str(e)}"}

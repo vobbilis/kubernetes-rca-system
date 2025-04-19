@@ -4,8 +4,8 @@
   "namespace": "default",
   "context": "",
   "created_at": "20250419_203658",
-  "updated_at": "20250419_204700",
-  "summary": "",
+  "updated_at": "20250419_205935",
+  "summary": "Investigation of 10 problematic pods in namespace 'default'.",
   "status": "in_progress",
   "conversation": [
     {
@@ -37,6 +37,16 @@
       "role": "assistant",
       "content": "I couldn't understand your query. Could you please be more specific about what you're looking for in your Kubernetes cluster?",
       "timestamp": "20250419_204700"
+    },
+    {
+      "role": "user",
+      "content": "How is my cluster doing?",
+      "timestamp": "20250419_205935"
+    },
+    {
+      "role": "assistant",
+      "content": "Based on my analysis of your Kubernetes cluster, I've detected 10 problematic pods including configmap-error, failing-job-2jdjm, failing-job-4ndjw, and 7 more. There are also 5 recent warning/error events that may indicate issues. I recommend checking the suggested actions below to investigate further.",
+      "timestamp": "20250419_205935"
     }
   ],
   "evidence": {},
@@ -1016,21 +1026,46 @@
   },
   "next_actions": [
     {
-      "text": "Run a comprehensive analysis of your namespace",
+      "text": "Run a comprehensive analysis",
       "action": {
         "type": "run_agent",
         "agent_type": "comprehensive"
       }
     },
     {
-      "text": "Check for problematic pods",
+      "text": "Check pod configmap-error",
       "action": {
-        "type": "run_agent",
-        "agent_type": "resources"
+        "type": "check_resource",
+        "resource_type": "Pod",
+        "resource_name": "configmap-error"
       }
     },
     {
-      "text": "View recent events",
+      "text": "View logs for configmap-error",
+      "action": {
+        "type": "check_logs",
+        "pod_name": "configmap-error",
+        "container_name": "config-container"
+      }
+    },
+    {
+      "text": "Check pod failing-job-2jdjm",
+      "action": {
+        "type": "check_resource",
+        "resource_type": "Pod",
+        "resource_name": "failing-job-2jdjm"
+      }
+    },
+    {
+      "text": "View logs for failing-job-2jdjm",
+      "action": {
+        "type": "check_logs",
+        "pod_name": "failing-job-2jdjm",
+        "container_name": "fail-container"
+      }
+    },
+    {
+      "text": "Check recent warning events",
       "action": {
         "type": "check_events",
         "field_selector": "type!=Normal"

@@ -247,6 +247,7 @@ def render_sidebar(k8s_client):
                     
                     if investigation_id:
                         st.session_state['current_investigation_id'] = investigation_id
+                        st.session_state['selected_investigation'] = investigation_id
                         
                         # Add initial message
                         st.session_state['db_handler'].add_conversation_entry(
@@ -258,11 +259,12 @@ def render_sidebar(k8s_client):
                         st.success(f"Created new investigation: {investigation_title}")
                         st.session_state['new_investigation_created'] = True
                         
-                        # Debug information
-                        st.info(f"Debug: Investigation ID set to {investigation_id}")
-                        st.write("Session state keys:", list(st.session_state.keys()))
+                        # Debug information, but collapsed by default to keep UI clean
+                        with st.expander("Debug Information", expanded=False):
+                            st.info(f"Investigation ID set to {investigation_id}")
+                            st.write("Session state keys:", list(st.session_state.keys()))
                         
-                        # Force rerun to update the UI
+                        # Force immediate refresh of the page
                         st.rerun()
                     else:
                         st.error("Failed to create investigation - missing ID")
