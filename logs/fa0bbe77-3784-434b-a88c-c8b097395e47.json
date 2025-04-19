@@ -4,7 +4,7 @@
   "namespace": "default",
   "context": "",
   "created_at": "20250419_232106",
-  "updated_at": "20250419_232106",
+  "updated_at": "20250419_232134",
   "summary": "",
   "status": "in_progress",
   "conversation": [
@@ -18,38 +18,24 @@
   "agent_findings": {},
   "next_actions": [
     {
-      "text": "Check the health of my cluster",
+      "text": "Run a comprehensive analysis of your namespace",
       "action": {
-        "type": "query",
-        "query": "Check the overall health of my Kubernetes cluster and show me any issues"
+        "type": "run_agent",
+        "agent_type": "comprehensive"
       }
     },
     {
-      "text": "What services are running in my cluster?",
-      "action": {
-        "type": "query",
-        "query": "List all services running in my Kubernetes cluster and their status"
-      }
-    },
-    {
-      "text": "Are any of my applications slow?",
-      "action": {
-        "type": "query",
-        "query": "Identify any applications or services that have performance issues or high latency"
-      }
-    },
-    {
-      "text": "Show failed pods",
-      "action": {
-        "type": "query",
-        "query": "List all failed or problematic pods and explain why they're failing"
-      }
-    },
-    {
-      "text": "Analyze resource usage",
+      "text": "Check for problematic pods",
       "action": {
         "type": "run_agent",
         "agent_type": "resources"
+      }
+    },
+    {
+      "text": "View recent events",
+      "action": {
+        "type": "check_events",
+        "field_selector": "type!=Normal"
       }
     }
   ]
