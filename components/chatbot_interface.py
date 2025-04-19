@@ -398,7 +398,19 @@ def render_chatbot_interface(
                 role = message.get('role', 'unknown')
                 content = message.get('content', '')
                 timestamp = message.get('timestamp', 0)
-                formatted_time = time.strftime('%H:%M:%S', time.localtime(timestamp)) if timestamp else ''
+                
+                # Format timestamp - handle both string and numeric timestamps
+                formatted_time = ""
+                if timestamp:
+                    try:
+                        # If timestamp is a number (unix timestamp)
+                        if isinstance(timestamp, (int, float)):
+                            formatted_time = time.strftime('%H:%M:%S', time.localtime(timestamp))
+                        # If timestamp is already a formatted string
+                        elif isinstance(timestamp, str):
+                            formatted_time = timestamp
+                    except Exception as e:
+                        print(f"Error formatting timestamp: {e}")
                 
                 # Process the content for HTML display (convert newlines to <br>, escape HTML)
                 # First, replace any specific HTML tags with their escaped versions
