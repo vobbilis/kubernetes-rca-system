@@ -84,6 +84,31 @@ class K8sClient:
                 api_config = client.Configuration.get_default_copy()
                 api_config.verify_ssl = False
                 api_config.debug = True
+                
+                # Extract server URL from the loaded configuration
+                # This ensures we use the correct host from the kubeconfig (ngrok URL)
+                contexts_list, active_context = config.list_kube_config_contexts(config_file=custom_kubeconfig)
+                if active_context:
+                    current_cluster_name = active_context['context']['cluster']
+                    for ctx in contexts_list:
+                        if ctx['name'] == current_cluster_name or ctx['context']['cluster'] == current_cluster_name:
+                            cluster_url = ctx['context'].get('cluster-url') or ctx['cluster']['server']
+                            print(f"Using cluster server URL: {cluster_url}")
+                            # Override the host with the actual server from kubeconfig
+                            api_config.host = cluster_url
+                            break
+                
+                # Direct parse of kubeconfig file as backup
+                if not api_config.host:
+                    with open(custom_kubeconfig, 'r') as f:
+                        kube_config = yaml.safe_load(f)
+                        for cluster in kube_config.get('clusters', []):
+                            server_url = cluster.get('cluster', {}).get('server')
+                            if server_url:
+                                print(f"Using server URL from direct parse: {server_url}")
+                                api_config.host = server_url
+                                break
+                
                 api_client = client.ApiClient(api_config)
                 
                 # Initialize API clients with this configuration
@@ -157,6 +182,30 @@ class K8sClient:
             api_config = client.Configuration.get_default_copy()
             api_config.verify_ssl = False
             api_config.debug = True
+            
+            # Get the kubeconfig path
+            custom_kubeconfig = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                         "kube-config", "safe-kubeconfig.yaml")
+            
+            # Extract server URL from the loaded configuration
+            # This ensures we use the correct host from the kubeconfig (ngrok URL)
+            clusters, contexts, users = config.list_kube_config_contexts(config_file=custom_kubeconfig)
+            current_ctx = None
+            for ctx in contexts:
+                if ctx['name'] == context_name:
+                    current_ctx = ctx
+                    break
+                    
+            # Direct parse of kubeconfig file to get the server URL
+            with open(custom_kubeconfig, 'r') as f:
+                kube_config = yaml.safe_load(f)
+                for cluster in kube_config.get('clusters', []):
+                    server_url = cluster.get('cluster', {}).get('server')
+                    if server_url:
+                        print(f"Using server URL from direct parse: {server_url}")
+                        api_config.host = server_url
+                        break
+            
             api_client = client.ApiClient(api_config)
             
             # Reinitialize API clients with SSL verification disabled
