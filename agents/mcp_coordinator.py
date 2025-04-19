@@ -2,7 +2,9 @@ from typing import Dict, List, Any, Optional
 import uuid
 import time
 import json
+import logging
 import networkx as nx
+import os
 
 from agents.mcp_metrics_agent import MCPMetricsAgent
 from agents.mcp_logs_agent import MCPLogsAgent
@@ -11,6 +13,12 @@ from agents.mcp_topology_agent import MCPTopologyAgent
 from agents.mcp_traces_agent import MCPTracesAgent
 from agents.resource_analyzer import ResourceAnalyzer
 from utils.llm_client_improved import LLMClient
+from utils.logging_helper import EvidenceLogger
+
+# Set up logging
+logging.basicConfig(level=logging.INFO,
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class MCPCoordinator:
     """
@@ -40,6 +48,9 @@ class MCPCoordinator:
         
         # Initialize the resource analyzer
         self.resource_analyzer = ResourceAnalyzer(k8s_client)
+        
+        # Initialize the evidence logger
+        self.evidence_logger = EvidenceLogger(logs_dir="logs")
         
         # Store analysis sessions
         self.analyses = {}
@@ -789,23 +800,50 @@ Output your response as a JSON array of hypothesis objects."""
                     }
                 ]
             
+            # Log each hypothesis with evidence
+            for hypothesis in hypotheses:
+                # Gather evidence for this component
+                evidence = self._get_evidence_for_component(component)
+                
+                # Log the hypothesis with evidence
+                log_path = self.evidence_logger.log_hypothesis(
+                    component=component,
+                    finding=finding,
+                    hypothesis=hypothesis,
+                    evidence=evidence
+                )
+                
+                # Add a reference to the logged evidence
+                hypothesis['evidence_log'] = log_path
+                logger.info(f"Logged hypothesis evidence for '{hypothesis.get('description', 'unknown')}' to {log_path}")
+            
             return hypotheses
             
         except Exception as e:
-            print(f"Error generating hypotheses: {e}")
-            # Return a default hypothesis on error
-            return [
-                {
-                    "description": f"Error occurred while analyzing {component}: {str(e)}",
-                    "confidence": 0.3,
-                    "investigation_steps": [
-                        "Check system connectivity",
-                        "Verify LLM API access",
-                        "Try again with more specific information"
-                    ],
-                    "related_components": []
-                }
-            ]
+            logger.error(f"Error generating hypotheses: {e}")
+            # Create default hypothesis on error
+            error_hypothesis = {
+                "description": f"Error occurred while analyzing {component}: {str(e)}",
+                "confidence": 0.3,
+                "investigation_steps": [
+                    "Check system connectivity",
+                    "Verify LLM API access",
+                    "Try again with more specific information"
+                ],
+                "related_components": []
+            }
+            
+            # Log the error hypothesis
+            log_path = self.evidence_logger.log_hypothesis(
+                component=component,
+                finding=finding,
+                hypothesis=error_hypothesis,
+                evidence={"error": str(e)}
+            )
+            
+            error_hypothesis['evidence_log'] = log_path
+            
+            return [error_hypothesis]
     
     def get_investigation_plan(self, component: str, finding: Dict[str, Any], hypothesis: Dict[str, Any]) -> Dict[str, Any]:
         """
