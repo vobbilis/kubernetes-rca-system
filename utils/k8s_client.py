@@ -125,6 +125,7 @@ class K8sClient:
                 self.core_v1 = client.CoreV1Api(api_client)
                 self.apps_v1 = client.AppsV1Api(api_client)
                 self.networking_v1 = client.NetworkingV1Api(api_client)
+                self.batch_v1 = client.BatchV1Api(api_client)  # For jobs and cronjobs
                 self.custom_objects_api = client.CustomObjectsApi(api_client)
                 
                 # Test the connection
@@ -159,6 +160,7 @@ class K8sClient:
                     self.core_v1 = client.CoreV1Api()
                     self.apps_v1 = client.AppsV1Api()
                     self.networking_v1 = client.NetworkingV1Api()
+                    self.batch_v1 = client.BatchV1Api()  # For jobs and cronjobs
                     self.custom_objects_api = client.CustomObjectsApi()
                 except config.config_exception.ConfigException:
                     print("Not running in a cluster and no kubeconfig found")
@@ -291,6 +293,7 @@ class K8sClient:
             self.core_v1 = client.CoreV1Api(api_client)
             self.apps_v1 = client.AppsV1Api(api_client)
             self.networking_v1 = client.NetworkingV1Api(api_client)
+            self.batch_v1 = client.BatchV1Api(api_client)  # For jobs and cronjobs
             self.custom_objects_api = client.CustomObjectsApi(api_client)
             
             # Test the connection
