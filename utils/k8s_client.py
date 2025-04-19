@@ -24,15 +24,13 @@ class K8sClient:
     def _load_config(self):
         """Load the Kubernetes configuration from the default location."""
         try:
-            # Try to load the in-cluster configuration first (when running inside Kubernetes)
-            try:
-                config.load_incluster_config()
-                self.connected = True
-                self.current_context = "in-cluster"
-                self.available_contexts = ["in-cluster"]
-            except config.config_exception.ConfigException:
-                # If not in a cluster, try to load from kubeconfig
-                config.load_kube_config()
+            # Try using our custom safe-kubeconfig.yaml first
+            custom_kubeconfig = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                           "kube-config", "safe-kubeconfig.yaml")
+            
+            if os.path.exists(custom_kubeconfig):
+                print(f"Loading Kubernetes configuration from {custom_kubeconfig}")
+                config.load_kube_config(config_file=custom_kubeconfig)
                 
                 # Get available contexts
                 k8s_config = config.list_kube_config_contexts()
@@ -41,13 +39,46 @@ class K8sClient:
                     self.current_context = k8s_config[1]['name']
                     self.connected = True
                 else:
+                    print("No contexts found in the kubeconfig")
                     self.connected = False
+            else:
+                # If custom config doesn't exist, try in-cluster config
+                try:
+                    print("Custom config not found, trying in-cluster configuration")
+                    config.load_incluster_config()
+                    self.connected = True
+                    self.current_context = "in-cluster"
+                    self.available_contexts = ["in-cluster"]
+                except config.config_exception.ConfigException:
+                    # If not in a cluster, try to load from default kubeconfig location
+                    print("Not running in a cluster, trying default kubeconfig")
+                    config.load_kube_config()
                     
-            # Create Kubernetes API clients
-            self.core_v1 = client.CoreV1Api()
-            self.apps_v1 = client.AppsV1Api()
-            self.networking_v1 = client.NetworkingV1Api()
-            self.custom_objects_api = client.CustomObjectsApi()
+                    # Get available contexts
+                    k8s_config = config.list_kube_config_contexts()
+                    if k8s_config:
+                        self.available_contexts = [context['name'] for context in k8s_config[0]]
+                        self.current_context = k8s_config[1]['name']
+                        self.connected = True
+                    else:
+                        print("No contexts found in the default kubeconfig")
+                        self.connected = False
+            
+            if self.connected:
+                # Create Kubernetes API clients
+                print(f"Connected to Kubernetes cluster with context: {self.current_context}")
+                self.core_v1 = client.CoreV1Api()
+                self.apps_v1 = client.AppsV1Api()
+                self.networking_v1 = client.NetworkingV1Api()
+                self.custom_objects_api = client.CustomObjectsApi()
+                
+                # Validate connection by making a test API call
+                try:
+                    self.core_v1.list_namespace(limit=1)
+                    print("Successfully validated Kubernetes API connection")
+                except Exception as api_error:
+                    print(f"Failed to validate Kubernetes API connection: {api_error}")
+                    self.connected = False
             
         except Exception as e:
             print(f"Failed to load Kubernetes configuration: {e}")
@@ -138,10 +169,6 @@ class K8sClient:
         if not self.connected:
             return []
         
-        # Use mock client if enabled
-        if self.use_mock:
-            return self.mock_client.pods.get(namespace, [])
-        
         try:
             pods = self.core_v1.list_namespaced_pod(namespace)
             return [self._convert_k8s_obj_to_dict(pod) for pod in pods.items]
@@ -204,10 +231,6 @@ class K8sClient:
         if not self.connected:
             return []
         
-        # Use mock client if enabled
-        if self.use_mock:
-            return self.mock_client.services.get(namespace, [])
-        
         try:
             services = self.core_v1.list_namespaced_service(namespace)
             return [self._convert_k8s_obj_to_dict(svc) for svc in services.items]
@@ -227,10 +250,6 @@ class K8sClient:
         """
         if not self.connected:
             return []
-        
-        # Use mock client if enabled
-        if self.use_mock:
-            return self.mock_client.deployments.get(namespace, [])
         
         try:
             deployments = self.apps_v1.list_namespaced_deployment(namespace)
@@ -401,38 +420,6 @@ class K8sClient:
         """
         if not self.connected:
             return []
-        
-        # Use mock client if enabled
-        if self.use_mock:
-            # Implement simple mock events data
-            mock_events = [
-                {
-                    "type": "Warning",
-                    "reason": "BackOff",
-                    "message": "Back-off restarting failed container database in pod database-7c9f8b6d5e-3x5qp",
-                    "involvedObject": {
-                        "kind": "Pod",
-                        "name": "database-7c9f8b6d5e-3x5qp",
-                        "namespace": namespace
-                    },
-                    "lastTimestamp": "2025-04-19T10:00:00Z",
-                    "count": 5
-                },
-                {
-                    "type": "Warning",
-                    "reason": "Failed",
-                    "message": "Error: ImagePullBackOff",
-                    "involvedObject": {
-                        "kind": "Pod",
-                        "name": "api-gateway-6b7c8d9e5f-4q3zx",
-                        "namespace": namespace
-                    },
-                    "lastTimestamp": "2025-04-19T10:05:00Z",
-                    "count": 3
-                }
-            ]
-            
-            return mock_events if namespace == "test-microservices" else []
         
         try:
             # Default field selector to show only non-normal events if none provided
