@@ -176,6 +176,30 @@ class K8sClient:
         """
         return self.connected
         
+    def reload_config(self):
+        """
+        Reload the Kubernetes configuration.
+        This is useful after updating the kubeconfig file.
+        
+        Returns:
+            bool: True if the reload was successful, False otherwise
+        """
+        try:
+            # Reset connection state
+            self.connected = False
+            self.current_context = None
+            self.available_contexts = []
+            self.last_connection_error = None
+            self.server_url = None
+            
+            # Reload configuration
+            self._load_config()
+            
+            return self.connected
+        except Exception as e:
+            print(f"Failed to reload Kubernetes configuration: {e}")
+            return False
+        
     def get_connection_error(self):
         """
         Get the last connection error message.

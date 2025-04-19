@@ -1,5 +1,50 @@
 import streamlit as st
+import os
+import yaml
 from utils.db_handler import DBHandler
+
+def update_kubeconfig_server_url(new_server_url):
+    """
+    Update the server URL in the kubeconfig file.
+    
+    Args:
+        new_server_url: The new server URL to set in the kubeconfig
+        
+    Returns:
+        bool: True if the update was successful, False otherwise
+    """
+    try:
+        # Get the path to the kubeconfig file
+        kubeconfig_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                                     "kube-config", "safe-kubeconfig.yaml")
+        
+        if not os.path.exists(kubeconfig_path):
+            st.error(f"Kubeconfig file not found: {kubeconfig_path}")
+            return False
+        
+        # Load the kubeconfig file
+        with open(kubeconfig_path, 'r') as f:
+            kubeconfig = yaml.safe_load(f)
+        
+        # Update the server URL in all clusters
+        updated = False
+        for cluster in kubeconfig.get('clusters', []):
+            if cluster.get('cluster') and 'server' in cluster['cluster']:
+                cluster['cluster']['server'] = new_server_url
+                updated = True
+        
+        if not updated:
+            st.error("Could not find server URL in kubeconfig")
+            return False
+        
+        # Write the updated kubeconfig file
+        with open(kubeconfig_path, 'w') as f:
+            yaml.dump(kubeconfig, f)
+        
+        return True
+    except Exception as e:
+        st.error(f"Error updating kubeconfig: {e}")
+        return False
 
 def render_sidebar(k8s_client):
     """
@@ -81,7 +126,41 @@ def render_sidebar(k8s_client):
         # Check if connected to Kubernetes
         if not k8s_client.is_connected():
             st.warning("⚠️ Not connected to Kubernetes")
-            st.info("Please configure kubectl access to your cluster")
+            error_message = k8s_client.get_connection_error() or "Unknown connection error"
+            
+            # If the error is from ngrok being offline, provide a way to update the endpoint
+            if "ERR_NGROK_3200" in error_message:
+                st.error("The ngrok tunnel endpoint is offline")
+                
+                # Extract current server URL for display
+                server_url = k8s_client.server_url or "Unknown"
+                st.info(f"Current endpoint: {server_url}")
+                
+                st.markdown("### Update ngrok Endpoint")
+                new_ngrok_url = st.text_input(
+                    "New ngrok URL",
+                    placeholder="https://your-new-ngrok-url.ngrok-free.app",
+                    help="Enter the new ngrok URL to update your kubeconfig"
+                )
+                
+                if st.button("Update Endpoint"):
+                    if new_ngrok_url and new_ngrok_url.startswith("https://"):
+                        if update_kubeconfig_server_url(new_ngrok_url):
+                            st.success("Kubeconfig updated successfully.")
+                            # Reload the kubernetes configuration
+                            with st.spinner("Reconnecting to Kubernetes cluster..."):
+                                if k8s_client.reload_config():
+                                    st.success("Successfully reconnected to Kubernetes cluster!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to connect to the new endpoint. Please check if the ngrok tunnel is active.")
+                        else:
+                            st.error("Failed to update kubeconfig. Please check permissions.")
+                    else:
+                        st.error("Please enter a valid HTTPS URL")
+            else:
+                st.info("Please configure kubectl access to your cluster")
+            
             return None, None, None, False, None, None
         
         # Kubernetes context selection
