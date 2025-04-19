@@ -256,54 +256,207 @@ def render_chatbot_interface(
     # Render the chat output (conversation history) in the top container
     with chat_output_container:
         st.subheader("Conversation")
-        # Get the last user message and assistant response to display prominently
-        last_user_msg = None
-        last_assistant_msg = None
+        
+        # Create a scrollable container for the chat messages
+        chat_container = st.container()
+        
+        # Add custom CSS for message styling
+        st.markdown("""
+        <style>
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #f0f0f0;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        
+        .message-user {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .message-ai {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .message-system {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 10px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message-content-user {
+            background-color: #e0e7ff;
+            padding: 12px 18px;
+            border-radius: 18px 18px 0 18px;
+            max-width: 80%;
+            text-align: right;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .message-content-ai {
+            background-color: #f0f7ff;
+            padding: 12px 18px;
+            border-radius: 18px 18px 18px 0;
+            max-width: 80%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .message-content-system {
+            background-color: #ffffcc;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-style: italic;
+            font-size: 0.85em;
+            max-width: 70%;
+            text-align: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            color: #555;
+        }
+        
+        .ai-icon {
+            width: 35px;
+            height: 35px;
+            margin-right: 10px;
+            background-color: #3f51b5; /* Material blue */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .chat-timestamp {
+            font-size: 0.7em;
+            color: #777;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .load-more-button {
+            text-align: center;
+            margin: 15px 0;
+            padding: 5px;
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .load-more-button:hover {
+            background-color: #e9e9e9;
+        }
+        </style>
+        """, unsafe_allow_html=True)
         
         if st.session_state.chat_history:
-            # Find the most recent user and assistant messages
-            for message in reversed(st.session_state.chat_history):
+            # Determine how many messages to show
+            total_messages = len(st.session_state.chat_history)
+            max_visible_messages = 20
+            
+            # Determine if we need a "Load More" button
+            start_index = max(0, total_messages - max_visible_messages)
+            has_more = start_index > 0
+            
+            # "Load More" button if there are older messages
+            if has_more:
+                # We use a unique key based on start_index to ensure the button state is preserved
+                if st.button("Load Older Messages", key=f"load_more_{start_index}"):
+                    # Show 20 more messages
+                    start_index = max(0, start_index - 20)
+            
+            # HTML for the beginning of the chat container
+            chat_html = '<div class="chat-container">'
+            
+            # Create HTML for all messages in the visible range
+            visible_messages = st.session_state.chat_history[start_index:total_messages]
+            
+            for message in visible_messages:
                 role = message.get('role', 'unknown')
-                if role == 'user' and last_user_msg is None:
-                    last_user_msg = message
-                elif role == 'assistant' and last_assistant_msg is None:
-                    last_assistant_msg = message
+                content = message.get('content', '')
+                timestamp = message.get('timestamp', 0)
+                formatted_time = time.strftime('%H:%M:%S', time.localtime(timestamp)) if timestamp else ''
                 
-                # Once we have both, we can stop
-                if last_user_msg and last_assistant_msg:
-                    break
+                # Process the content for HTML display (convert newlines to <br>, escape HTML)
+                # First, replace any specific HTML tags with their escaped versions
+                processed_content = content.replace('<', '&lt;').replace('>', '&gt;')
+                # Then convert newlines to <br> tags for proper HTML line breaks
+                processed_content = processed_content.replace('\n', '<br>')
+                
+                if role == 'user':
+                    chat_html += f"""
+                    <div class="message-user">
+                        <div class="message-content-user">
+                            {processed_content}
+                            <div class="chat-timestamp">{formatted_time}</div>
+                        </div>
+                    </div>
+                    """
+                elif role == 'assistant':
+                    chat_html += f"""
+                    <div class="message-ai">
+                        <div class="ai-icon" style="width: 35px; height: 35px; margin-right: 10px; background-color: #3f51b5; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px;">AI</div>
+                        <div class="message-content-ai">
+                            {processed_content}
+                            <div class="chat-timestamp">{formatted_time}</div>
+                        </div>
+                    </div>
+                    """
+                elif role == 'system':
+                    chat_html += f"""
+                    <div class="message-system">
+                        <div class="message-content-system">
+                            {processed_content}
+                            <div class="chat-timestamp">{formatted_time}</div>
+                        </div>
+                    </div>
+                    """
             
-            # If we have recent messages, display them prominently
-            if last_user_msg or last_assistant_msg:
-                with st.container():
-                    if last_user_msg:
-                        st.markdown(f"**User:** {last_user_msg.get('content', '')}")
-                    if last_assistant_msg:
-                        st.markdown(f"**AI:** {last_assistant_msg.get('content', '')}")
+            # Close the chat container
+            chat_html += '</div>'
             
-            # Display previous conversation history
-            if len(st.session_state.chat_history) > 2:  # If there are more than just the last 2 messages
-                with st.expander("View Full Conversation History", expanded=False):
-                    # Skip the last user and assistant messages if they were displayed above
-                    skip_indices = []
-                    if last_user_msg:
-                        skip_indices.append(st.session_state.chat_history.index(last_user_msg))
-                    if last_assistant_msg:
-                        skip_indices.append(st.session_state.chat_history.index(last_assistant_msg))
-                    
-                    for i, message in enumerate(st.session_state.chat_history):
-                        if i in skip_indices:
-                            continue
-                            
-                        role = message.get('role', 'unknown')
-                        content = message.get('content', '')
-                        
-                        if role == 'user':
-                            st.markdown(f"**User:** {content}")
-                        elif role == 'assistant':
-                            st.markdown(f"**AI:** {content}")
-                        elif role == 'system':
-                            st.markdown(f"*System: {content}*")
+            # Display the chat using HTML
+            chat_container.markdown(chat_html, unsafe_allow_html=True)
+            
+            # Auto-scroll to the bottom using JavaScript
+            st.markdown("""
+            <script>
+                function scrollToBottom() {
+                    const chatContainer = document.querySelector('.chat-container');
+                    if (chatContainer) {
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                    }
+                }
+                // Call immediately and also after a short delay to ensure DOM is loaded
+                scrollToBottom();
+                setTimeout(scrollToBottom, 100);
+            </script>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No messages yet. Start by asking a question about your Kubernetes cluster.")
     
     # Render suggested actions in the middle container
     with suggestions_container:
