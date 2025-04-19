@@ -138,12 +138,18 @@ def main():
         )
     # If we've submitted a new investigation, create it and render the chatbot
     elif submitted:
-        render_chatbot_interface(
-            coordinator=coordinator, 
-            k8s_client=k8s_client,
-            investigation_id=st.session_state.get('current_investigation_id'),
-            db_handler=db_handler
-        )
+        # Add a check to ensure we have a valid investigation ID before attempting to render chatbot
+        investigation_id = st.session_state.get('current_investigation_id')
+        if investigation_id:
+            st.success(f"Investigation started! ID: {investigation_id}")
+            render_chatbot_interface(
+                coordinator=coordinator, 
+                k8s_client=k8s_client,
+                investigation_id=investigation_id,
+                db_handler=db_handler
+            )
+        else:
+            st.error("Failed to create investigation. Please try again.")
     # Otherwise, show a welcome message
     else:
         st.title("Kubernetes Root Cause Analysis System")

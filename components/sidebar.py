@@ -237,20 +237,32 @@ def render_sidebar(k8s_client):
                 st.error("Please provide a title for the investigation")
                 submitted = False
             else:
-                # Create a new investigation
-                investigation_id = st.session_state['db_handler'].create_investigation(
-                    title=investigation_title,
-                    namespace=selected_namespace,
-                    context=""  # Empty context initially, will be generated from first question
-                )
-                st.session_state['current_investigation_id'] = investigation_id
-                
-                # Add initial message
-                st.session_state['db_handler'].add_conversation_entry(
-                    investigation_id=investigation_id,
-                    role="system",
-                    content=f"Investigation started for namespace {selected_namespace}. Analysis type: {analysis_type}."
-                )
+                try:
+                    # Create a new investigation
+                    investigation_id = st.session_state['db_handler'].create_investigation(
+                        title=investigation_title,
+                        namespace=selected_namespace,
+                        context=""  # Empty context initially, will be generated from first question
+                    )
+                    
+                    if investigation_id:
+                        st.session_state['current_investigation_id'] = investigation_id
+                        
+                        # Add initial message
+                        st.session_state['db_handler'].add_conversation_entry(
+                            investigation_id=investigation_id,
+                            role="system",
+                            content=f"Investigation started for namespace {selected_namespace}. Analysis type: {analysis_type}."
+                        )
+                        
+                        st.success(f"Created new investigation: {investigation_title}")
+                        st.session_state['new_investigation_created'] = True
+                    else:
+                        st.error("Failed to create investigation - missing ID")
+                        submitted = False
+                except Exception as e:
+                    st.error(f"Error creating investigation: {str(e)}")
+                    submitted = False
     
     # Show current connection info at the bottom of the sidebar
     st.sidebar.markdown("---")
