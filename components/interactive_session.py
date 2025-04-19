@@ -32,6 +32,9 @@ def init_interactive_session():
     if 'selected_component' not in st.session_state:
         st.session_state.selected_component = None
         
+    if 'view_mode' not in st.session_state:
+        st.session_state.view_mode = 'welcome'
+        
     # Ensure logs directory exists
     try:
         if not os.path.exists("logs"):

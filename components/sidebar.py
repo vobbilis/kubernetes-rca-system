@@ -265,6 +265,9 @@ def render_sidebar(k8s_client):
                             st.write("Session state keys:", list(st.session_state.keys()))
                         
                         # Force immediate refresh of the page
+                        st.session_state['view_mode'] = 'chat'  # Set mode to chat view
+                        print(f"DEBUG: New investigation created with ID {investigation_id}. Changing view to chat mode.")
+                        print(f"DEBUG: Current session state: {list(st.session_state.keys())}")
                         st.rerun()
                     else:
                         st.error("Failed to create investigation - missing ID")

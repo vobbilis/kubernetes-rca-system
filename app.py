@@ -130,17 +130,31 @@ def main():
     
     # Check if we have a current investigation in session state
     current_investigation_id = st.session_state.get('current_investigation_id')
+    view_mode = st.session_state.get('view_mode', 'welcome')
     
     # Debugging information
     with st.sidebar.expander("Debug Information", expanded=False):
         st.write("Current Investigation ID:", current_investigation_id)
         st.write("Selected Investigation:", selected_investigation)
+        st.write("View Mode:", view_mode)
         st.write("Submitted:", submitted)
         st.write("Session State Keys:", list(st.session_state.keys()))
     
+    # If we're in chat view mode with a newly created investigation
+    if view_mode == 'chat' and current_investigation_id:
+        st.success(f"Working with investigation: {current_investigation_id}")
+        print(f"DEBUG: Rendering chatbot interface for investigation {current_investigation_id} (from view_mode)")
+        render_chatbot_interface(
+            coordinator=coordinator, 
+            k8s_client=k8s_client,
+            investigation_id=current_investigation_id,
+            db_handler=db_handler
+        )
+    
     # If we have a selected investigation from sidebar, render that
-    if selected_investigation:
+    elif selected_investigation:
         st.info(f"Viewing investigation: {selected_investigation}")
+        print(f"DEBUG: Rendering chatbot interface for investigation {selected_investigation} (from sidebar)")
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
@@ -151,6 +165,7 @@ def main():
     # If we have a current investigation in session state, render that
     elif current_investigation_id:
         st.success(f"Working with current investigation: {current_investigation_id}")
+        print(f"DEBUG: Rendering chatbot interface for investigation {current_investigation_id} (from session state)")
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
@@ -166,6 +181,7 @@ def main():
         investigation_id = st.session_state.get('current_investigation_id')
         if investigation_id:
             st.success(f"Investigation started! ID: {investigation_id}")
+            print(f"DEBUG: Rendering chatbot interface for investigation {investigation_id} (from submitted)")
             render_chatbot_interface(
                 coordinator=coordinator, 
                 k8s_client=k8s_client,
