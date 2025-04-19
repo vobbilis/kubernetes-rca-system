@@ -1,0 +1,31 @@
+{
+  "timestamp": "20250419_191445",
+  "component": "Pod/crash-pod",
+  "finding": {
+    "component": "Pod/crash-pod",
+    "issue": "Event BackOff: Back-off restarting failed container crash-pod in ...",
+    "severity": "critical",
+    "evidence": "Event: BackOff\nMessage: Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217)"
+  },
+  "hypothesis": {
+    "description": "Container image pull failure or corruption causing container startup issues",
+    "confidence": 0.35,
+    "investigation_steps": [
+      "Check image pull policy and registry accessibility",
+      "Verify image tag exists in container registry",
+      "Review node's container runtime logs for image-related errors",
+      "Attempt to manually pull the image on a test environment"
+    ],
+    "related_components": [
+      "Container Registry",
+      "Container Runtime",
+      "Network Connectivity"
+    ]
+  },
+  "evidence": {
+    "pod_details_error": "'K8sClient' object has no attribute 'get_pod'",
+    "pod_logs": "",
+    "pod_events_error": "K8sClient.get_events() got an unexpected keyword argument 'field_selector'",
+    "cluster_info_error": "'K8sClient' object has no attribute 'get_nodes'"
+  }
+}

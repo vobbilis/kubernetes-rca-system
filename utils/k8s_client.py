@@ -145,6 +145,27 @@ class K8sClient:
             print(f"Failed to get pods in namespace {namespace}: {e}")
             return []
     
+    def get_pod(self, namespace, pod_name):
+        """
+        Get detailed information for a specific pod.
+        
+        Args:
+            namespace: Namespace of the pod
+            pod_name: Name of the pod
+            
+        Returns:
+            dict: Pod data or None if not found
+        """
+        if not self.connected:
+            return None
+        
+        try:
+            pod = self.core_v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            return self._convert_k8s_obj_to_dict(pod)
+        except Exception as e:
+            print(f"Failed to get pod {pod_name} in namespace {namespace}: {e}")
+            return None
+            
     def get_pod_status(self, namespace, pod_name):
         """
         Get detailed status information for a specific pod.
@@ -355,12 +376,13 @@ class K8sClient:
             print(f"Failed to get logs for pod {pod_name}: {e}")
             return ""
     
-    def get_events(self, namespace):
+    def get_events(self, namespace, field_selector=None):
         """
         Get events for a namespace.
         
         Args:
             namespace: Namespace to query
+            field_selector: Optional field selector to filter events
             
         Returns:
             list: Event data
@@ -369,7 +391,11 @@ class K8sClient:
             return []
         
         try:
-            events = self.core_v1.list_namespaced_event(namespace, field_selector="type!=Normal")
+            # Default field selector to show only non-normal events if none provided
+            if field_selector is None:
+                field_selector = "type!=Normal"
+                
+            events = self.core_v1.list_namespaced_event(namespace, field_selector=field_selector)
             return [self._convert_k8s_obj_to_dict(event) for event in events.items]
         except Exception as e:
             print(f"Failed to get events for namespace {namespace}: {e}")
@@ -526,6 +552,23 @@ class K8sClient:
             return [self._convert_k8s_obj_to_dict(svc) for svc in services.items]
         except Exception as e:
             print(f"Failed to get services with label {label_selector}: {e}")
+            return []
+    
+    def get_nodes(self):
+        """
+        Get all nodes in the cluster.
+        
+        Returns:
+            list: Node data
+        """
+        if not self.connected:
+            return []
+        
+        try:
+            nodes = self.core_v1.list_node()
+            return [self._convert_k8s_obj_to_dict(node) for node in nodes.items]
+        except Exception as e:
+            print(f"Failed to get nodes: {e}")
             return []
     
     def get_current_time(self):
