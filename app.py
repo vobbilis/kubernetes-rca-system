@@ -83,6 +83,26 @@ if 'db_handler' not in st.session_state:
 
 # Main application
 def main():
+    # Check URL parameters for direct navigation
+    query_params = st.experimental_get_query_params()
+    investigation_from_url = query_params.get("investigation", [None])[0]
+    view_from_url = query_params.get("view", [None])[0]
+    
+    print(f"DEBUG [app.py]: Starting with URL parameters: investigation={investigation_from_url}, view={view_from_url}")
+    
+    # If we have investigation parameter in URL, set it in session state
+    if investigation_from_url:
+        print(f"DEBUG [app.py]: Setting investigation from URL: {investigation_from_url}")
+        st.session_state['current_investigation_id'] = investigation_from_url
+        st.session_state['selected_investigation'] = investigation_from_url
+        st.session_state['active_investigation'] = investigation_from_url
+        st.session_state['chat_target_id'] = investigation_from_url
+        
+        # If view=chat is also specified, set view_mode to chat
+        if view_from_url == "chat":
+            print(f"DEBUG [app.py]: Setting view_mode to chat from URL")
+            st.session_state['view_mode'] = 'chat'
+    
     # Display LLM provider info
     with st.sidebar.expander("LLM Configuration"):
         st.write(f"Using {llm_provider.upper()} as the LLM provider")

@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import yaml
+import time
 from utils.db_handler import DBHandler
 
 def update_kubeconfig_server_url(new_server_url):
@@ -72,17 +73,37 @@ def render_sidebar(k8s_client):
         db_handler = st.session_state['db_handler']
         investigations = db_handler.list_investigations()
         
-        # New Investigation button
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            new_investigation = st.button("➕ New Investigation", type="primary", key="sidebar_new_investigation")
-        
-        if new_investigation:
-            st.session_state['current_investigation_id'] = None
-            st.session_state['new_investigation'] = True
-            # We need to directly switch to the configuration view
-            # Force a rerun to refresh the UI
-            st.rerun()
+        # New Investigation button - Direct approach
+        if st.button("➕ New Investigation", type="primary", key="sidebar_new_investigation"):
+            # Create a new investigation directly
+            try:
+                investigation_title = f"New Investigation ({time.strftime('%Y-%m-%d %H:%M')})"
+                investigation_id = st.session_state['db_handler'].create_investigation(
+                    title=investigation_title,
+                    namespace="default",  # Default namespace as fallback
+                    context=""
+                )
+                
+                if investigation_id:
+                    # Set all session state variables consistently
+                    st.session_state['current_investigation_id'] = investigation_id
+                    st.session_state['selected_investigation'] = investigation_id
+                    st.session_state['active_investigation'] = investigation_id
+                    st.session_state['chat_target_id'] = investigation_id
+                    st.session_state['view_mode'] = 'chat'
+                    st.session_state['chat_history'] = []
+                    
+                    # Add system message
+                    st.session_state['db_handler'].add_conversation_entry(
+                        investigation_id=investigation_id,
+                        role="system",
+                        content=f"Investigation started at {time.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                    
+                    st.success(f"Created new investigation: {investigation_title}")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error creating investigation: {str(e)}")
             
         # List of investigations
         st.subheader("Past Investigations")

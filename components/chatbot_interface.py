@@ -94,6 +94,43 @@ def render_chatbot_interface(
     """
     print(f"DEBUG [chatbot_interface.py]: Rendering chatbot interface with investigation_id: {investigation_id}")
     
+    # Critical check: If investigation_id is None, create one
+    if not investigation_id:
+        print(f"WARNING [chatbot_interface.py]: No investigation_id provided! Creating a new one.")
+        try:
+            if db_handler:
+                # Create a temporary investigation automatically
+                investigation_id = db_handler.create_investigation(
+                    title=f"Auto-created Investigation ({time.strftime('%Y-%m-%d %H:%M')})",
+                    namespace="default",
+                    context=""
+                )
+                
+                # Set all session state variables
+                st.session_state['current_investigation_id'] = investigation_id
+                st.session_state['selected_investigation'] = investigation_id
+                st.session_state['active_investigation'] = investigation_id
+                st.session_state['chat_target_id'] = investigation_id
+                st.session_state['view_mode'] = 'chat'
+                
+                # Add system message
+                db_handler.add_conversation_entry(
+                    investigation_id=investigation_id,
+                    role="system",
+                    content=f"Auto-created investigation at {time.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+                
+                st.info(f"Created new investigation automatically with ID: {investigation_id}")
+                print(f"DEBUG [chatbot_interface.py]: Created new investigation with ID: {investigation_id}")
+            else:
+                # No DB handler provided, use in-memory only
+                st.warning("No database handler available. Chat history will not be persisted.")
+                print(f"ERROR [chatbot_interface.py]: No db_handler provided, cannot create investigation")
+        except Exception as e:
+            st.error(f"Error creating investigation: {str(e)}")
+            print(f"ERROR [chatbot_interface.py]: Failed to create investigation: {str(e)}")
+    
+    # Page title
     st.title("Kubernetes Root Cause Analysis")
     
     # Add debug info about the investigation
@@ -103,7 +140,7 @@ def render_chatbot_interface(
             investigation = db_handler.get_investigation(investigation_id)
             print(f"DEBUG [chatbot_interface.py]: Got investigation from db_handler: {investigation is not None}")
         
-        with st.expander("Chatbot Debug Info", expanded=False):
+        with st.expander("Investigation Info", expanded=True):
             st.write(f"Investigation ID: {investigation_id}")
             st.write(f"Investigation exists in DB: {investigation is not None}")
             if investigation:
@@ -112,6 +149,8 @@ def render_chatbot_interface(
                 st.write(f"Created at: {investigation.get('created_at')}")
                 st.write(f"Status: {investigation.get('status')}")
                 st.write(f"Message count: {len(investigation.get('conversation', []))}")
+            else:
+                st.error("Investigation not found in database. Check the logs for details.")
     
     # Load chat history if this is a continuing investigation
     if investigation_id and db_handler:
@@ -122,7 +161,7 @@ def render_chatbot_interface(
             print(f"DEBUG [chatbot_interface.py]: Chat history already loaded, length: {len(st.session_state.chat_history)}")
     
     # Create a layout with a fixed chat input at the bottom
-    # Use containers for each section
+    # Use containers for each section to ensure proper layout
     chat_output_container = st.container()
     suggestions_container = st.container()
     st.markdown("---")  # Separator before the fixed chat input
