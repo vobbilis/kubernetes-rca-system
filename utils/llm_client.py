@@ -176,7 +176,40 @@ class LLMClient:
             
             except Exception as e:
                 logger.error(f"OpenAI API error: {e}")
-                return f"Error generating completion: {e}"
+                error_msg = str(e)
+                
+                # Check for quota exceeded error
+                if "exceeded your current quota" in error_msg or "insufficient_quota" in error_msg:
+                    quota_msg = """
+                    API quota exceeded. This error occurs when:
+                    1. The OpenAI API key has reached its usage limit
+                    2. The billing information for the API key needs to be updated
+                    
+                    Please try one of the following:
+                    - Switch to the Anthropic provider by changing the LLMClient initialization
+                    - Provide a different OpenAI API key with available quota
+                    - Update the billing information for your OpenAI account
+                    """
+                    logger.warning(quota_msg)
+                    return json.dumps({
+                        "error": "API Quota Exceeded",
+                        "message": "The OpenAI API key has reached its usage limit. Please update billing details or use a different key.",
+                        "recommendations": [
+                            "Switch to Anthropic Claude API",
+                            "Update billing information",
+                            "Use a different OpenAI API key"
+                        ]
+                    })
+                
+                return json.dumps({
+                    "error": "API Error",
+                    "message": f"Error generating completion: {error_msg}",
+                    "recommendations": [
+                        "Try again with a different prompt",
+                        "Check API key validity",
+                        "Try a different model"
+                    ]
+                })
         
         elif self.provider == "anthropic":
             # Handle different prompt types
