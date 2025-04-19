@@ -1,417 +1,365 @@
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from agents.base_agent import BaseAgent
 
-from utils.kubernetes_client import KubernetesClient
-
-class MetricsAgent:
+class MetricsAgent(BaseAgent):
     """
-    Agent responsible for analyzing resource metrics from Kubernetes pods and nodes.
-    Identifies anomalies and performance issues based on CPU, memory, and network usage.
+    Agent specialized in analyzing Kubernetes metrics data.
+    Focuses on resource usage, performance metrics, and anomaly detection.
     """
     
-    def __init__(self, k8s_client: KubernetesClient):
+    def __init__(self, k8s_client):
         """
-        Initialize the metrics agent with a Kubernetes client.
+        Initialize the metrics agent.
         
         Args:
-            k8s_client: An initialized Kubernetes client for interacting with the cluster
+            k8s_client: An instance of the Kubernetes client for API interactions
         """
-        self.k8s_client = k8s_client
+        super().__init__(k8s_client)
     
-    def analyze(
-        self, 
-        namespace: str, 
-        resource_type: Optional[str] = None, 
-        resource_name: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> Dict[str, Any]:
+    def analyze(self, namespace, context=None, **kwargs):
         """
-        Analyze metrics for the specified resources.
+        Analyze metrics data for the specified namespace.
         
         Args:
-            namespace: Kubernetes namespace to analyze
-            resource_type: Type of resource to analyze (pod, deployment, etc.)
-            resource_name: Name of the specific resource to analyze
-            start_time: Start time for metrics collection
-            end_time: End time for metrics collection
+            namespace: The Kubernetes namespace to analyze
+            context: The Kubernetes context to use
+            **kwargs: Additional parameters for the analysis
             
         Returns:
-            Dict containing metrics analysis results
+            dict: Results of the metrics analysis
         """
-        # Default times if not provided
-        if not start_time:
-            start_time = datetime.now() - timedelta(hours=1)
-        if not end_time:
-            end_time = datetime.now()
+        self.reset()
         
-        # Collect metrics
-        metrics = self._collect_metrics(namespace, resource_type, resource_name, start_time, end_time)
-        
-        # Analyze resource usage
-        resource_usage = self._analyze_resource_usage(metrics)
-        
-        # Detect anomalies
-        anomalies = self._detect_anomalies(metrics)
-        
-        # Prepare results
-        results = {
-            'resource_usage': resource_usage,
-            'anomalies': anomalies,
-            'raw_metrics': self._format_raw_metrics(metrics)
-        }
-        
-        return results
+        try:
+            # Set the context if provided
+            if context:
+                self.k8s_client.set_context(context)
+            
+            # Get pod metrics for the namespace
+            pod_metrics = self.k8s_client.get_pod_metrics(namespace)
+            
+            # Get node metrics
+            node_metrics = self.k8s_client.get_node_metrics()
+            
+            # Analyze resource usage
+            self._analyze_cpu_usage(pod_metrics)
+            self._analyze_memory_usage(pod_metrics)
+            self._analyze_node_resources(node_metrics)
+            
+            # Check for resource limits and requests
+            self._analyze_resource_configurations(namespace)
+            
+            # Analyze HPA (Horizontal Pod Autoscaler) if applicable
+            self._analyze_hpa_configurations(namespace)
+            
+            # Return the analysis results
+            return self.get_results()
+            
+        except Exception as e:
+            self.add_reasoning_step(
+                observation=f"Error occurred during metrics analysis: {str(e)}",
+                conclusion="Unable to complete metrics analysis due to an error"
+            )
+            return {
+                'error': str(e),
+                'findings': self.findings,
+                'reasoning_steps': self.reasoning_steps
+            }
     
-    def _collect_metrics(
-        self, 
-        namespace: str, 
-        resource_type: Optional[str], 
-        resource_name: Optional[str],
-        start_time: datetime,
-        end_time: datetime
-    ) -> Dict[str, Any]:
+    def _analyze_cpu_usage(self, pod_metrics):
         """
-        Collect metrics from the Kubernetes metrics API.
+        Analyze CPU usage metrics for pods.
         
         Args:
-            namespace: Kubernetes namespace to analyze
-            resource_type: Type of resource to collect metrics for
-            resource_name: Name of the specific resource to collect metrics for
-            start_time: Start time for metrics collection
-            end_time: End time for metrics collection
-            
-        Returns:
-            Dict containing collected metrics
+            pod_metrics: Dictionary of pod metrics data
         """
-        # In a real implementation, this would query the Kubernetes Metrics API
-        # For this example, we'll simulate metric collection based on resource type
+        if not pod_metrics:
+            self.add_reasoning_step(
+                observation="No CPU metrics data available",
+                conclusion="Unable to analyze CPU usage"
+            )
+            return
         
-        metrics = {
-            'cpu': {},
-            'memory': {},
-            'network': {}
-        }
+        self.add_reasoning_step(
+            observation=f"Analyzing CPU usage for {len(pod_metrics)} pods",
+            conclusion="Beginning CPU usage analysis"
+        )
         
-        # Determine target resources
-        if resource_type == 'pod' and resource_name:
-            targets = [{'name': resource_name, 'type': 'pod'}]
-        elif resource_type == 'deployment' and resource_name:
-            # For a deployment, we need to get all its pods
-            pods = self.k8s_client.get_pods_for_deployment(namespace, resource_name)
-            targets = [{'name': pod['name'], 'type': 'pod'} for pod in pods]
+        # Check for high CPU usage
+        high_cpu_pods = []
+        for pod_name, metrics in pod_metrics.items():
+            cpu_usage = metrics.get('cpu', {}).get('usage_percentage', 0)
+            
+            if cpu_usage > 80:
+                high_cpu_pods.append((pod_name, cpu_usage))
+                
+        if high_cpu_pods:
+            pod_list = ", ".join([f"{name} ({usage:.1f}%)" for name, usage in high_cpu_pods])
+            self.add_finding(
+                component="Pods CPU Usage",
+                issue=f"High CPU usage detected in {len(high_cpu_pods)} pods",
+                severity="high" if any(usage > 90 for _, usage in high_cpu_pods) else "medium",
+                evidence=f"Pods with high CPU usage: {pod_list}",
+                recommendation="Consider scaling these deployments or optimizing the application code"
+            )
+            
+            self.add_reasoning_step(
+                observation=f"Detected {len(high_cpu_pods)} pods with CPU usage above 80%",
+                conclusion="High CPU usage may indicate resource constraints or inefficient application code"
+            )
         else:
-            # Get all pods in the namespace
-            pods = self.k8s_client.get_pods(namespace)
-            targets = [{'name': pod['name'], 'type': 'pod'} for pod in pods]
-        
-        # Generate time points for metrics
-        time_range = (end_time - start_time).total_seconds() / 60  # minutes
-        time_points = [start_time + timedelta(minutes=i) for i in range(int(time_range) + 1)]
-        
-        # Collect metrics for each target
-        for target in targets:
-            # CPU metrics (percentage)
-            cpu_data = []
-            base_cpu = np.random.uniform(10, 40)  # Base CPU usage (%)
-            
-            for t in time_points:
-                # Simulate CPU usage with some randomness
-                cpu_value = base_cpu + np.random.normal(0, 5)
-                
-                # Add some spikes randomly
-                if np.random.random() < 0.05:  # 5% chance of a spike
-                    cpu_value += np.random.uniform(20, 50)
-                
-                # Cap at 100%
-                cpu_value = min(100, max(0, cpu_value))
-                
-                cpu_data.append({
-                    'timestamp': t,
-                    'value': cpu_value
-                })
-            
-            metrics['cpu'][target['name']] = cpu_data
-            
-            # Memory metrics (MB)
-            memory_data = []
-            base_memory = np.random.uniform(100, 500)  # Base memory usage (MB)
-            
-            for t in time_points:
-                # Simulate memory usage with some randomness and a slight upward trend
-                time_factor = (t - start_time).total_seconds() / (end_time - start_time).total_seconds()
-                memory_value = base_memory + (base_memory * 0.1 * time_factor) + np.random.normal(0, 20)
-                
-                # Add some spikes randomly
-                if np.random.random() < 0.03:  # 3% chance of a spike
-                    memory_value += np.random.uniform(50, 200)
-                
-                # Ensure positive value
-                memory_value = max(0, memory_value)
-                
-                memory_data.append({
-                    'timestamp': t,
-                    'value': memory_value
-                })
-            
-            metrics['memory'][target['name']] = memory_data
-            
-            # Network metrics (KB/s)
-            network_data = []
-            base_network = np.random.uniform(50, 200)  # Base network usage (KB/s)
-            
-            for t in time_points:
-                # Simulate network usage with some randomness
-                network_value = base_network + np.random.normal(0, 30)
-                
-                # Add some spikes randomly
-                if np.random.random() < 0.08:  # 8% chance of a spike
-                    network_value += np.random.uniform(100, 500)
-                
-                # Ensure positive value
-                network_value = max(0, network_value)
-                
-                network_data.append({
-                    'timestamp': t,
-                    'value': network_value
-                })
-            
-            metrics['network'][target['name']] = network_data
-        
-        return metrics
+            self.add_reasoning_step(
+                observation="No pods with high CPU usage detected",
+                conclusion="CPU usage appears to be within acceptable limits"
+            )
     
-    def _analyze_resource_usage(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_memory_usage(self, pod_metrics):
         """
-        Analyze resource usage from collected metrics.
+        Analyze memory usage metrics for pods.
         
         Args:
-            metrics: Dictionary containing collected metrics
-            
-        Returns:
-            Dict containing resource usage analysis
+            pod_metrics: Dictionary of pod metrics data
         """
-        resource_usage = {}
+        if not pod_metrics:
+            self.add_reasoning_step(
+                observation="No memory metrics data available",
+                conclusion="Unable to analyze memory usage"
+            )
+            return
         
-        # Analyze CPU usage
-        for pod_name, cpu_data in metrics['cpu'].items():
-            if not cpu_data:
-                continue
+        self.add_reasoning_step(
+            observation=f"Analyzing memory usage for {len(pod_metrics)} pods",
+            conclusion="Beginning memory usage analysis"
+        )
+        
+        # Check for high memory usage
+        high_memory_pods = []
+        for pod_name, metrics in pod_metrics.items():
+            memory_usage = metrics.get('memory', {}).get('usage_percentage', 0)
+            
+            if memory_usage > 80:
+                high_memory_pods.append((pod_name, memory_usage))
                 
-            cpu_values = [item['value'] for item in cpu_data]
-            avg_cpu = np.mean(cpu_values)
-            max_cpu = np.max(cpu_values)
+        if high_memory_pods:
+            pod_list = ", ".join([f"{name} ({usage:.1f}%)" for name, usage in high_memory_pods])
+            self.add_finding(
+                component="Pods Memory Usage",
+                issue=f"High memory usage detected in {len(high_memory_pods)} pods",
+                severity="high" if any(usage > 90 for _, usage in high_memory_pods) else "medium",
+                evidence=f"Pods with high memory usage: {pod_list}",
+                recommendation="Consider increasing memory limits, scaling horizontally, or investigating memory leaks"
+            )
             
-            resource_usage[f"{pod_name}_cpu"] = {
-                'resource': f"{pod_name} (CPU)",
-                'average': round(avg_cpu, 2),
-                'maximum': round(max_cpu, 2),
-                'utilization': round(avg_cpu, 2),
-                'status': 'critical' if max_cpu > 90 else ('warning' if max_cpu > 70 else 'normal')
-            }
-        
-        # Analyze Memory usage
-        for pod_name, memory_data in metrics['memory'].items():
-            if not memory_data:
-                continue
-                
-            memory_values = [item['value'] for item in memory_data]
-            avg_memory = np.mean(memory_values)
-            max_memory = np.max(memory_values)
-            
-            # Assume a pod with 2GB limit for the utilization calculation
-            memory_limit = 2048  # MB
-            utilization = (avg_memory / memory_limit) * 100
-            
-            resource_usage[f"{pod_name}_memory"] = {
-                'resource': f"{pod_name} (Memory)",
-                'average': round(avg_memory, 2),
-                'maximum': round(max_memory, 2),
-                'utilization': round(utilization, 2),
-                'status': 'critical' if utilization > 90 else ('warning' if utilization > 70 else 'normal')
-            }
-        
-        # Analyze Network usage
-        for pod_name, network_data in metrics['network'].items():
-            if not network_data:
-                continue
-                
-            network_values = [item['value'] for item in network_data]
-            avg_network = np.mean(network_values)
-            max_network = np.max(network_values)
-            
-            resource_usage[f"{pod_name}_network"] = {
-                'resource': f"{pod_name} (Network)",
-                'average': round(avg_network, 2),
-                'maximum': round(max_network, 2),
-                'units': 'KB/s'
-            }
-        
-        return resource_usage
+            self.add_reasoning_step(
+                observation=f"Detected {len(high_memory_pods)} pods with memory usage above 80%",
+                conclusion="High memory usage may indicate memory leaks or insufficient resource allocation"
+            )
+        else:
+            self.add_reasoning_step(
+                observation="No pods with high memory usage detected",
+                conclusion="Memory usage appears to be within acceptable limits"
+            )
     
-    def _detect_anomalies(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _analyze_node_resources(self, node_metrics):
         """
-        Detect anomalies in the metrics data.
+        Analyze resource usage at the node level.
         
         Args:
-            metrics: Dictionary containing collected metrics
-            
-        Returns:
-            List of detected anomalies
+            node_metrics: Dictionary of node metrics data
         """
-        anomalies = []
+        if not node_metrics:
+            self.add_reasoning_step(
+                observation="No node metrics data available",
+                conclusion="Unable to analyze node resource usage"
+            )
+            return
         
-        # Detect CPU anomalies
-        for pod_name, cpu_data in metrics['cpu'].items():
-            if not cpu_data:
-                continue
-                
-            cpu_values = [item['value'] for item in cpu_data]
-            cpu_times = [item['timestamp'] for item in cpu_data]
-            
-            # Calculate mean and standard deviation
-            mean = np.mean(cpu_values)
-            std = np.std(cpu_values)
-            
-            # Detect outliers (values beyond 3 standard deviations)
-            threshold = mean + (3 * std)
-            
-            # Find outlier points
-            outliers = [(cpu_times[i], val) for i, val in enumerate(cpu_values) if val > threshold and val > 70]
-            
-            if outliers:
-                # Create chart data for visualization
-                chart_data = []
-                for i, val in enumerate(cpu_values):
-                    chart_data.append({
-                        'timestamp': cpu_times[i].strftime('%Y-%m-%d %H:%M:%S'),
-                        'value': val,
-                        'is_anomaly': val > threshold and val > 70
-                    })
-                
-                anomalies.append({
-                    'resource': f"{pod_name} (CPU)",
-                    'description': f"CPU usage spikes detected ({len(outliers)} occurrences)",
-                    'severity': 'High' if max(cpu_values) > 90 else 'Medium',
-                    'deviation': f"{round((max(cpu_values) - mean) / mean * 100, 1)}% above average",
-                    'chart_data': chart_data
-                })
+        self.add_reasoning_step(
+            observation=f"Analyzing resource usage for {len(node_metrics)} nodes",
+            conclusion="Beginning node resource analysis"
+        )
         
-        # Detect Memory anomalies
-        for pod_name, memory_data in metrics['memory'].items():
-            if not memory_data:
-                continue
-                
-            memory_values = [item['value'] for item in memory_data]
-            memory_times = [item['timestamp'] for item in memory_data]
+        # Check for node resource pressure
+        pressured_nodes = []
+        for node_name, metrics in node_metrics.items():
+            cpu_usage = metrics.get('cpu', {}).get('usage_percentage', 0)
+            memory_usage = metrics.get('memory', {}).get('usage_percentage', 0)
             
-            # Calculate trend using linear regression
-            x = np.arange(len(memory_values))
-            slope, _ = np.polyfit(x, memory_values, 1)
-            
-            # Check for memory leaks (consistent upward trend)
-            if slope > 2.0:  # Memory increases by more than 2MB per minute on average
-                # Create chart data for visualization
-                chart_data = []
-                for i, val in enumerate(memory_values):
-                    chart_data.append({
-                        'timestamp': memory_times[i].strftime('%Y-%m-%d %H:%M:%S'),
-                        'value': val
-                    })
-                
-                anomalies.append({
-                    'resource': f"{pod_name} (Memory)",
-                    'description': f"Potential memory leak detected (trend: +{round(slope, 2)} MB/minute)",
-                    'severity': 'High' if slope > 5.0 else 'Medium',
-                    'growth_rate': f"{round(slope * 60, 2)} MB/hour",
-                    'chart_data': chart_data
-                })
+            if cpu_usage > 80 or memory_usage > 80:
+                pressured_nodes.append((node_name, cpu_usage, memory_usage))
         
-        # Detect Network anomalies
-        for pod_name, network_data in metrics['network'].items():
-            if not network_data:
-                continue
-                
-            network_values = [item['value'] for item in network_data]
-            network_times = [item['timestamp'] for item in network_data]
+        if pressured_nodes:
+            node_list = ", ".join([f"{name} (CPU: {cpu:.1f}%, Memory: {mem:.1f}%)" for name, cpu, mem in pressured_nodes])
+            self.add_finding(
+                component="Node Resources",
+                issue=f"Resource pressure detected on {len(pressured_nodes)} nodes",
+                severity="high" if any(cpu > 90 or mem > 90 for _, cpu, mem in pressured_nodes) else "medium",
+                evidence=f"Nodes under resource pressure: {node_list}",
+                recommendation="Consider adding more nodes to the cluster or optimizing workload distribution"
+            )
             
-            # Calculate mean and standard deviation
-            mean = np.mean(network_values)
-            std = np.std(network_values)
-            
-            # Detect outliers (values beyond 3 standard deviations)
-            threshold = mean + (3 * std)
-            
-            # Find outlier points
-            outliers = [(network_times[i], val) for i, val in enumerate(network_values) if val > threshold and val > 300]
-            
-            if outliers and len(outliers) > 2:  # Require at least 3 outliers to report
-                # Create chart data for visualization
-                chart_data = []
-                for i, val in enumerate(network_values):
-                    chart_data.append({
-                        'timestamp': network_times[i].strftime('%Y-%m-%d %H:%M:%S'),
-                        'value': val,
-                        'is_anomaly': val > threshold and val > 300
-                    })
-                
-                anomalies.append({
-                    'resource': f"{pod_name} (Network)",
-                    'description': f"Network usage spikes detected ({len(outliers)} occurrences)",
-                    'severity': 'Medium',
-                    'deviation': f"{round((max(network_values) - mean) / mean * 100, 1)}% above average",
-                    'chart_data': chart_data
-                })
-        
-        return anomalies
+            self.add_reasoning_step(
+                observation=f"Detected {len(pressured_nodes)} nodes with high resource usage",
+                conclusion="Node resource pressure may be affecting overall cluster performance and pod scheduling"
+            )
+        else:
+            self.add_reasoning_step(
+                observation="No nodes with high resource pressure detected",
+                conclusion="Node resource usage appears to be within acceptable limits"
+            )
     
-    def _format_raw_metrics(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+    def _analyze_resource_configurations(self, namespace):
         """
-        Format raw metrics for analysis results.
+        Analyze resource requests and limits configurations.
         
         Args:
-            metrics: Dictionary containing collected metrics
-            
-        Returns:
-            Dict containing formatted metrics
+            namespace: The Kubernetes namespace to analyze
         """
-        formatted_metrics = {}
+        try:
+            # Get deployments in the namespace
+            deployments = self.k8s_client.get_deployments(namespace)
+            
+            if not deployments:
+                self.add_reasoning_step(
+                    observation=f"No deployments found in namespace {namespace}",
+                    conclusion="Unable to analyze resource configurations"
+                )
+                return
+            
+            self.add_reasoning_step(
+                observation=f"Analyzing resource configurations for {len(deployments)} deployments",
+                conclusion="Beginning resource configuration analysis"
+            )
+            
+            # Check for missing resource requests/limits
+            missing_resources = []
+            
+            for deployment in deployments:
+                name = deployment['metadata']['name']
+                containers = deployment['spec']['template']['spec']['containers']
+                
+                for container in containers:
+                    container_name = container['name']
+                    resources = container.get('resources', {})
+                    
+                    has_cpu_request = 'requests' in resources and 'cpu' in resources['requests']
+                    has_memory_request = 'requests' in resources and 'memory' in resources['requests']
+                    has_cpu_limit = 'limits' in resources and 'cpu' in resources['limits']
+                    has_memory_limit = 'limits' in resources and 'memory' in resources['limits']
+                    
+                    if not has_cpu_request or not has_memory_request or not has_cpu_limit or not has_memory_limit:
+                        missing_resources.append((name, container_name, has_cpu_request, has_memory_request, has_cpu_limit, has_memory_limit))
+            
+            if missing_resources:
+                dep_list = ", ".join([f"{name}/{container}" for name, container, _, _, _, _ in missing_resources])
+                self.add_finding(
+                    component="Resource Configuration",
+                    issue=f"Missing resource requests or limits in {len(missing_resources)} containers",
+                    severity="medium",
+                    evidence=f"Containers with missing resource configurations: {dep_list}",
+                    recommendation="Add appropriate CPU and memory requests and limits to all containers"
+                )
+                
+                self.add_reasoning_step(
+                    observation=f"Detected {len(missing_resources)} containers with missing resource configurations",
+                    conclusion="Missing resource configurations can lead to resource contention and unpredictable behavior"
+                )
+            else:
+                self.add_reasoning_step(
+                    observation="All containers have resource requests and limits configured",
+                    conclusion="Resource configurations appear to be properly defined"
+                )
+                
+        except Exception as e:
+            self.add_reasoning_step(
+                observation=f"Error analyzing resource configurations: {str(e)}",
+                conclusion="Unable to complete resource configuration analysis"
+            )
+    
+    def _analyze_hpa_configurations(self, namespace):
+        """
+        Analyze Horizontal Pod Autoscaler configurations.
         
-        # Format CPU metrics
-        cpu_data = []
-        for pod_name, pod_metrics in metrics['cpu'].items():
-            for metric in pod_metrics:
-                cpu_data.append({
-                    'pod': pod_name,
-                    'timestamp': metric['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'value': metric['value'],
-                    'unit': '%'
-                })
-        formatted_metrics['cpu'] = cpu_data
-        
-        # Format Memory metrics
-        memory_data = []
-        for pod_name, pod_metrics in metrics['memory'].items():
-            for metric in pod_metrics:
-                memory_data.append({
-                    'pod': pod_name,
-                    'timestamp': metric['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'value': metric['value'],
-                    'unit': 'MB'
-                })
-        formatted_metrics['memory'] = memory_data
-        
-        # Format Network metrics
-        network_data = []
-        for pod_name, pod_metrics in metrics['network'].items():
-            for metric in pod_metrics:
-                network_data.append({
-                    'pod': pod_name,
-                    'timestamp': metric['timestamp'].strftime('%Y-%m-%d %H:%M:%S'),
-                    'value': metric['value'],
-                    'unit': 'KB/s'
-                })
-        formatted_metrics['network'] = network_data
-        
-        return formatted_metrics
+        Args:
+            namespace: The Kubernetes namespace to analyze
+        """
+        try:
+            # Get HPAs in the namespace
+            hpas = self.k8s_client.get_hpas(namespace)
+            
+            if not hpas:
+                self.add_reasoning_step(
+                    observation=f"No HPAs found in namespace {namespace}",
+                    conclusion="No autoscaling configurations to analyze"
+                )
+                return
+            
+            self.add_reasoning_step(
+                observation=f"Analyzing {len(hpas)} Horizontal Pod Autoscalers",
+                conclusion="Beginning HPA configuration analysis"
+            )
+            
+            # Check for potentially problematic HPA configurations
+            problematic_hpas = []
+            
+            for hpa in hpas:
+                name = hpa['metadata']['name']
+                min_replicas = hpa['spec'].get('minReplicas', 1)
+                max_replicas = hpa['spec'].get('maxReplicas', 1)
+                current_replicas = hpa['status'].get('currentReplicas', 0)
+                desired_replicas = hpa['status'].get('desiredReplicas', 0)
+                
+                # Check if HPA is at max capacity
+                if current_replicas == max_replicas and current_replicas > 0:
+                    problematic_hpas.append((name, "at_max_capacity", min_replicas, max_replicas, current_replicas))
+                
+                # Check for narrow scaling range
+                if max_replicas - min_replicas < 2 and min_replicas > 1:
+                    problematic_hpas.append((name, "narrow_range", min_replicas, max_replicas, current_replicas))
+                
+                # Check if desired replicas consistently different from current
+                if desired_replicas > current_replicas:
+                    problematic_hpas.append((name, "scaling_delay", min_replicas, max_replicas, current_replicas))
+            
+            if problematic_hpas:
+                for name, issue_type, min_replicas, max_replicas, current_replicas in problematic_hpas:
+                    if issue_type == "at_max_capacity":
+                        self.add_finding(
+                            component=f"HPA/{name}",
+                            issue=f"HPA is at maximum capacity ({current_replicas}/{max_replicas} replicas)",
+                            severity="high",
+                            evidence=f"HPA {name} is running at maximum capacity of {max_replicas} replicas",
+                            recommendation=f"Consider increasing the maximum replicas for this HPA"
+                        )
+                    elif issue_type == "narrow_range":
+                        self.add_finding(
+                            component=f"HPA/{name}",
+                            issue=f"HPA has a narrow scaling range ({min_replicas}-{max_replicas} replicas)",
+                            severity="low",
+                            evidence=f"HPA {name} has min={min_replicas}, max={max_replicas} replicas",
+                            recommendation=f"Consider widening the scaling range to allow more flexibility"
+                        )
+                    elif issue_type == "scaling_delay":
+                        self.add_finding(
+                            component=f"HPA/{name}",
+                            issue=f"HPA desired replicas not matching current replicas",
+                            severity="medium",
+                            evidence=f"HPA {name} has desired replicas > current replicas",
+                            recommendation=f"Investigate potential issues preventing scaling or configure less aggressive scaling"
+                        )
+                
+                self.add_reasoning_step(
+                    observation=f"Detected {len(problematic_hpas)} HPAs with potential configuration issues",
+                    conclusion="HPA configuration issues may be affecting the ability to scale effectively"
+                )
+            else:
+                self.add_reasoning_step(
+                    observation="All HPAs appear to be properly configured",
+                    conclusion="HPA configurations look appropriate for the current workload"
+                )
+                
+        except Exception as e:
+            self.add_reasoning_step(
+                observation=f"Error analyzing HPA configurations: {str(e)}",
+                conclusion="Unable to complete HPA configuration analysis"
+            )

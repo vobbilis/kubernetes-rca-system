@@ -1,443 +1,477 @@
 import re
-import pandas as pd
-import numpy as np
-from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
-from collections import Counter
+from agents.base_agent import BaseAgent
 
-from utils.kubernetes_client import KubernetesClient
-
-class LogsAgent:
+class LogsAgent(BaseAgent):
     """
-    Agent responsible for analyzing application logs from Kubernetes pods.
-    Identifies error patterns, exceptions, and trends in log data.
+    Agent specialized in analyzing Kubernetes logs data.
+    Focuses on error detection, pattern recognition, and log analysis.
     """
     
-    def __init__(self, k8s_client: KubernetesClient):
+    def __init__(self, k8s_client):
         """
-        Initialize the logs agent with a Kubernetes client.
+        Initialize the logs agent.
         
         Args:
-            k8s_client: An initialized Kubernetes client for interacting with the cluster
+            k8s_client: An instance of the Kubernetes client for API interactions
         """
-        self.k8s_client = k8s_client
+        super().__init__(k8s_client)
         
-        # Common error patterns to search for
-        self.error_patterns = [
-            r'error|exception|failed|failure|timeout|refused|unable to|cannot|denied',
-            r'NullPointerException|IndexOutOfBoundsException|IllegalStateException',
-            r'segmentation fault|core dumped|killed|OOMKilled',
-            r'warning|[wW]arn',
-            r'HTTP/\d+\.\d+"\s+[45]\d\d'  # HTTP 4xx and 5xx status codes
-        ]
-    
-    def analyze(
-        self, 
-        namespace: str, 
-        resource_type: Optional[str] = None, 
-        resource_name: Optional[str] = None,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
-    ) -> Dict[str, Any]:
-        """
-        Analyze logs for the specified resources.
-        
-        Args:
-            namespace: Kubernetes namespace to analyze
-            resource_type: Type of resource to analyze (pod, deployment, etc.)
-            resource_name: Name of the specific resource to analyze
-            start_time: Start time for log collection
-            end_time: End time for log collection
-            
-        Returns:
-            Dict containing logs analysis results
-        """
-        # Default times if not provided
-        if not start_time:
-            start_time = datetime.now() - timedelta(hours=1)
-        if not end_time:
-            end_time = datetime.now()
-        
-        # Collect logs
-        logs = self._collect_logs(namespace, resource_type, resource_name, start_time, end_time)
-        
-        # Extract error patterns
-        error_patterns = self._extract_error_patterns(logs)
-        
-        # Create log timeline
-        timeline = self._create_timeline(logs)
-        
-        # Prepare results
-        results = {
-            'error_patterns': error_patterns,
-            'timeline': timeline,
-            'log_stats': self._get_log_stats(logs)
+        # Common error patterns to look for in logs
+        self.error_patterns = {
+            'oom_kill': r'(Out of memory|OOMKilled|Killed|signal: killed)',
+            'connection_refused': r'(Connection refused|connect: connection refused)',
+            'permission_denied': r'(Permission denied|Forbidden|Access denied)',
+            'timeout': r'(timeout|Timeout|timed out|ETIMEDOUT)',
+            'crash_loop': r'(CrashLoopBackOff|Back-off restarting)',
+            'api_error': r'(API server error|StatusCode=5\d\d)',
+            'volume_mount': r'(Unable to mount volumes|MountVolume.SetUp failed)',
+            'image_pull': r'(ErrImagePull|ImagePullBackOff)',
+            'dns_resolution': r'(DNS resolution failed|could not resolve)',
+            'authentication': r'(Unauthorized|Authentication failed)',
+            'config_error': r'(Invalid configuration|ConfigMap not found|Secret not found)',
+            'internal_server_error': r'(internal server error|InternalServerError|500 Internal Server Error)',
+            'exception': r'(Exception|Error|Traceback|FATAL|CRITICAL|Panic|panic:)'
         }
-        
-        return results
     
-    def _collect_logs(
-        self, 
-        namespace: str, 
-        resource_type: Optional[str], 
-        resource_name: Optional[str],
-        start_time: datetime,
-        end_time: datetime
-    ) -> List[Dict[str, Any]]:
+    def analyze(self, namespace, context=None, **kwargs):
         """
-        Collect logs from Kubernetes resources.
+        Analyze logs data for the specified namespace.
         
         Args:
-            namespace: Kubernetes namespace to analyze
-            resource_type: Type of resource to collect logs for
-            resource_name: Name of the specific resource to collect logs for
-            start_time: Start time for log collection
-            end_time: End time for log collection
+            namespace: The Kubernetes namespace to analyze
+            context: The Kubernetes context to use
+            **kwargs: Additional parameters for the analysis
             
         Returns:
-            List of log entries
+            dict: Results of the logs analysis
         """
-        # In a real implementation, this would query logs using kubectl or the K8s API
-        # For this example, we'll simulate log collection
+        self.reset()
         
-        # Determine target pods
-        if resource_type == 'pod' and resource_name:
-            target_pods = [resource_name]
-        elif resource_type == 'deployment' and resource_name:
-            # For a deployment, we need to get all its pods
-            pods = self.k8s_client.get_pods_for_deployment(namespace, resource_name)
-            target_pods = [pod['name'] for pod in pods]
-        else:
-            # Get all pods in the namespace
+        try:
+            # Set the context if provided
+            if context:
+                self.k8s_client.set_context(context)
+            
+            # Get pods in the namespace
             pods = self.k8s_client.get_pods(namespace)
-            target_pods = [pod['name'] for pod in pods]
-        
-        # Simulate log entries
-        log_entries = []
-        
-        # Common log severity levels
-        severities = ['INFO', 'DEBUG', 'WARN', 'ERROR', 'CRITICAL']
-        severity_weights = [0.7, 0.15, 0.1, 0.04, 0.01]  # Probabilities for each severity
-        
-        # Common log messages
-        info_messages = [
-            "Application started successfully",
-            "Processing request",
-            "Request completed successfully",
-            "Connection established",
-            "User authenticated",
-            "Data loaded successfully",
-            "Cache refreshed",
-            "Scheduled task executed",
-            "Configuration loaded"
-        ]
-        
-        debug_messages = [
-            "Debug: Processing item",
-            "Debug: Variable value is",
-            "Debug: Method called with parameters",
-            "Debug: Query executed in",
-            "Debug: Cache hit for key"
-        ]
-        
-        warn_messages = [
-            "Warning: Slow query detected",
-            "Warning: High memory usage",
-            "Warning: Deprecated API call",
-            "Warning: Connection pool running low",
-            "Warning: Request rate high",
-            "Warning: Cache miss rate increasing"
-        ]
-        
-        error_messages = [
-            "Error: Failed to connect to service",
-            "Error: Database query failed",
-            "Error: Timeout waiting for response",
-            "Error: Invalid input data",
-            "Error: Authentication failed",
-            "Error: File not found",
-            "Error: Out of memory",
-            "Error: Exception in thread",
-            "Error: NullPointerException",
-            "Error: Connection refused",
-            "Error: HTTP 500 response from API"
-        ]
-        
-        critical_messages = [
-            "CRITICAL: System is out of resources",
-            "CRITICAL: Database connection lost",
-            "CRITICAL: Service terminated unexpectedly",
-            "CRITICAL: Data corruption detected",
-            "CRITICAL: Unable to recover from exception"
-        ]
-        
-        # Generate time points for logs
-        time_diff = (end_time - start_time).total_seconds()
-        
-        # Generate logs for each pod
-        for pod_name in target_pods:
-            # Determine number of log entries based on time range
-            num_entries = int(time_diff / 10)  # Approx 1 log entry per 10 seconds
             
-            # Add some randomness
-            num_entries = max(10, int(num_entries * np.random.uniform(0.8, 1.2)))
+            if not pods:
+                self.add_reasoning_step(
+                    observation=f"No pods found in namespace {namespace}",
+                    conclusion="Unable to analyze logs as no pods were found"
+                )
+                return self.get_results()
             
-            # Generate timestamps
-            timestamps = [start_time + timedelta(seconds=np.random.uniform(0, time_diff)) for _ in range(num_entries)]
-            timestamps.sort()
-            
-            # Generate log entries
-            for timestamp in timestamps:
-                # Select severity based on weights
-                severity = np.random.choice(severities, p=severity_weights)
-                
-                # Select appropriate message based on severity
-                if severity == 'INFO':
-                    message = np.random.choice(info_messages)
-                elif severity == 'DEBUG':
-                    message = np.random.choice(debug_messages)
-                elif severity == 'WARN':
-                    message = np.random.choice(warn_messages)
-                elif severity == 'ERROR':
-                    message = np.random.choice(error_messages)
-                else:  # CRITICAL
-                    message = np.random.choice(critical_messages)
-                
-                # Add some randomness to messages
-                if np.random.random() < 0.3:  # 30% chance to add details
-                    if severity in ['INFO', 'DEBUG']:
-                        message += f" (id={np.random.randint(1000, 9999)})"
-                    elif severity in ['WARN', 'ERROR', 'CRITICAL']:
-                        message += f": {np.random.choice(['timeout after 30s', 'received null response', 'unexpected status code', 'connection reset'])}"
-                
-                log_entries.append({
-                    'pod': pod_name,
-                    'timestamp': timestamp,
-                    'severity': severity,
-                    'message': message
-                })
-        
-        # Add some specific error patterns to make analysis interesting
-        if len(log_entries) > 10:
-            # Simulate a recurring error pattern
-            error_pod = np.random.choice(target_pods)
-            error_times = [
-                start_time + timedelta(seconds=np.random.uniform(0, time_diff/3)),
-                start_time + timedelta(seconds=np.random.uniform(time_diff/3, 2*time_diff/3)),
-                start_time + timedelta(seconds=np.random.uniform(2*time_diff/3, time_diff))
-            ]
-            
-            for error_time in error_times:
-                log_entries.append({
-                    'pod': error_pod,
-                    'timestamp': error_time,
-                    'severity': 'ERROR',
-                    'message': "Error: Connection refused to database. Retrying in 5s..."
-                })
-            
-            # Simulate an exception
-            exception_pod = np.random.choice(target_pods)
-            exception_time = start_time + timedelta(seconds=np.random.uniform(time_diff/2, time_diff))
-            
-            log_entries.append({
-                'pod': exception_pod,
-                'timestamp': exception_time,
-                'severity': 'ERROR',
-                'message': "Error: Exception in thread \"main\" java.lang.NullPointerException at com.example.MyService.processRequest(MyService.java:42)"
-            })
-            
-            # Simulate an OOM event
-            if np.random.random() < 0.3:  # 30% chance to add OOM
-                oom_pod = np.random.choice(target_pods)
-                oom_time = start_time + timedelta(seconds=np.random.uniform(time_diff*0.7, time_diff))
-                
-                log_entries.append({
-                    'pod': oom_pod,
-                    'timestamp': oom_time,
-                    'severity': 'CRITICAL',
-                    'message': "CRITICAL: Container killed due to OOMKilled"
-                })
-        
-        # Sort log entries by timestamp
-        log_entries.sort(key=lambda x: x['timestamp'])
-        
-        return log_entries
-    
-    def _extract_error_patterns(self, logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Extract error patterns from logs.
-        
-        Args:
-            logs: List of log entries
-            
-        Returns:
-            List of identified error patterns
-        """
-        # Filter logs for errors and warnings
-        error_logs = [log for log in logs if log['severity'] in ['ERROR', 'CRITICAL', 'WARN']]
-        
-        if not error_logs:
-            return []
-        
-        # Extract messages
-        messages = [log['message'] for log in error_logs]
-        
-        # Match common error patterns
-        pattern_matches = []
-        
-        for pattern in self.error_patterns:
-            matches = []
-            
-            for msg in messages:
-                if re.search(pattern, msg, re.IGNORECASE):
-                    matches.append(msg)
-            
-            if matches:
-                pattern_matches.append({
-                    'pattern': pattern,
-                    'count': len(matches),
-                    'examples': matches[:3]  # Include up to 3 examples
-                })
-        
-        # Look for repeated exact error messages
-        error_counter = Counter(messages)
-        repeated_errors = [{'pattern': msg, 'count': count, 'examples': [msg]} 
-                          for msg, count in error_counter.items() 
-                          if count > 1]
-        
-        # Combine patterns
-        all_patterns = pattern_matches + repeated_errors
-        
-        # Sort by count (descending)
-        all_patterns.sort(key=lambda x: x['count'], reverse=True)
-        
-        return all_patterns
-    
-    def _create_timeline(self, logs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Create a timeline of log events.
-        
-        Args:
-            logs: List of log entries
-            
-        Returns:
-            List of timeline events
-        """
-        timeline = []
-        
-        # Group logs by time window
-        time_windows = {}
-        window_size = timedelta(minutes=5)
-        
-        for log in logs:
-            # Round timestamp to nearest 5-minute window
-            window_start = log['timestamp'].replace(
-                minute=(log['timestamp'].minute // 5) * 5,
-                second=0,
-                microsecond=0
+            self.add_reasoning_step(
+                observation=f"Found {len(pods)} pods in namespace {namespace}",
+                conclusion="Beginning logs analysis for each pod"
             )
             
-            window_key = window_start.isoformat()
+            # Get recently terminated pods
+            terminated_pods = self.k8s_client.get_recently_terminated_pods(namespace)
+            if terminated_pods:
+                self.add_reasoning_step(
+                    observation=f"Found {len(terminated_pods)} recently terminated pods",
+                    conclusion="Will analyze logs from terminated pods as well"
+                )
+                pods.extend(terminated_pods)
             
-            if window_key not in time_windows:
-                time_windows[window_key] = {
-                    'timestamp': window_start,
-                    'INFO': 0, 'DEBUG': 0, 'WARN': 0, 'ERROR': 0, 'CRITICAL': 0,
-                    'messages': []
-                }
+            # Analyze logs for each pod
+            pod_log_issues = []
             
-            # Count by severity
-            time_windows[window_key][log['severity']] += 1
+            for pod in pods:
+                pod_name = pod['metadata']['name']
+                containers = pod['spec']['containers']
+                
+                for container in containers:
+                    container_name = container['name']
+                    
+                    # Get logs for this container
+                    logs = self.k8s_client.get_pod_logs(pod_name, namespace, container_name)
+                    
+                    if logs:
+                        # Analyze container logs
+                        self._analyze_container_logs(pod_name, container_name, logs)
+                        
+                        # Check for specific container issues
+                        issues = self._check_container_status(pod, container_name)
+                        if issues:
+                            pod_log_issues.append((pod_name, container_name, issues))
             
-            # Store important messages
-            if log['severity'] in ['ERROR', 'CRITICAL'] and len(time_windows[window_key]['messages']) < 5:
-                time_windows[window_key]['messages'].append({
-                    'severity': log['severity'],
-                    'pod': log['pod'],
-                    'message': log['message']
-                })
-        
-        # Convert to timeline format
-        for window_key, window_data in time_windows.items():
-            severity = 'normal'
+            # Analyze pod status and conditions
+            self._analyze_pod_conditions(pods)
             
-            # Determine severity based on log counts
-            if window_data['CRITICAL'] > 0:
-                severity = 'critical'
-            elif window_data['ERROR'] > 3:
-                severity = 'error'
-            elif window_data['ERROR'] > 0 or window_data['WARN'] > 5:
-                severity = 'warning'
+            # Analyze init container failures
+            self._analyze_init_containers(pods)
             
-            message = ''
-            if window_data['messages']:
-                message = window_data['messages'][0]['message']
+            # Check for pods with no logs
+            self._check_for_no_logs(pods)
             
-            # Total count
-            count = sum([window_data[s] for s in ['INFO', 'DEBUG', 'WARN', 'ERROR', 'CRITICAL']])
+            # Return the analysis results
+            return self.get_results()
             
-            timeline.append({
-                'timestamp': window_data['timestamp'].isoformat(),
-                'severity': severity,
-                'count': count,
-                'error_count': window_data['ERROR'] + window_data['CRITICAL'],
-                'warn_count': window_data['WARN'],
-                'info_count': window_data['INFO'] + window_data['DEBUG'],
-                'message': message
-            })
-        
-        return timeline
+        except Exception as e:
+            self.add_reasoning_step(
+                observation=f"Error occurred during logs analysis: {str(e)}",
+                conclusion="Unable to complete logs analysis due to an error"
+            )
+            return {
+                'error': str(e),
+                'findings': self.findings,
+                'reasoning_steps': self.reasoning_steps
+            }
     
-    def _get_log_stats(self, logs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_container_logs(self, pod_name, container_name, logs):
         """
-        Generate statistics about the logs.
+        Analyze logs for a specific container.
         
         Args:
-            logs: List of log entries
-            
-        Returns:
-            Dict containing log statistics
+            pod_name: Name of the pod
+            container_name: Name of the container
+            logs: Container logs as string
         """
         if not logs:
-            return {
-                'total_entries': 0,
-                'error_rate': 0,
-                'pods': []
-            }
+            self.add_reasoning_step(
+                observation=f"No logs available for {pod_name}/{container_name}",
+                conclusion="Unable to analyze logs for this container"
+            )
+            return
         
-        # Count by severity
-        severity_counts = Counter([log['severity'] for log in logs])
+        log_lines = logs.splitlines()
+        self.add_reasoning_step(
+            observation=f"Analyzing {len(log_lines)} log lines for {pod_name}/{container_name}",
+            conclusion="Beginning log pattern analysis"
+        )
         
-        # Count by pod
-        pod_counts = Counter([log['pod'] for log in logs])
+        # Check for common error patterns
+        error_matches = {}
+        for error_type, pattern in self.error_patterns.items():
+            matches = [line for line in log_lines if re.search(pattern, line, re.IGNORECASE)]
+            if matches:
+                error_matches[error_type] = matches
         
-        # Calculate error rate
-        error_count = severity_counts.get('ERROR', 0) + severity_counts.get('CRITICAL', 0)
-        total_count = len(logs)
-        error_rate = (error_count / total_count) * 100 if total_count > 0 else 0
+        # Report on findings
+        if error_matches:
+            for error_type, matches in error_matches.items():
+                severity = self._determine_error_severity(error_type)
+                
+                # Limit number of example lines to avoid overwhelming the report
+                example_lines = matches[:3]
+                example_text = "\n".join([f"- {line[:200]}..." if len(line) > 200 else f"- {line}" for line in example_lines])
+                
+                if len(matches) > 3:
+                    example_text += f"\n- ... and {len(matches) - 3} more similar errors"
+                
+                self.add_finding(
+                    component=f"Pod/{pod_name}/{container_name}",
+                    issue=f"Detected {len(matches)} instances of {self._format_error_type(error_type)} in logs",
+                    severity=severity,
+                    evidence=f"Log entries:\n{example_text}",
+                    recommendation=self._get_recommendation_for_error(error_type)
+                )
+                
+                self.add_reasoning_step(
+                    observation=f"Found {len(matches)} log entries matching {error_type} pattern in {pod_name}/{container_name}",
+                    conclusion=f"Container is experiencing {self._format_error_type(error_type)} issues"
+                )
+        else:
+            self.add_reasoning_step(
+                observation=f"No error patterns detected in logs for {pod_name}/{container_name}",
+                conclusion="Container logs appear normal"
+            )
+    
+    def _check_container_status(self, pod, container_name):
+        """
+        Check the status of a container in a pod.
         
-        # Get pods with highest error rates
-        pod_error_counts = {}
-        for log in logs:
-            if log['severity'] in ['ERROR', 'CRITICAL']:
-                pod_error_counts[log['pod']] = pod_error_counts.get(log['pod'], 0) + 1
+        Args:
+            pod: Pod data
+            container_name: Name of the container
+            
+        Returns:
+            list: Issues found with the container
+        """
+        issues = []
         
-        pod_error_rates = [
-            {
-                'pod': pod,
-                'total_logs': pod_counts[pod],
-                'error_logs': pod_error_counts.get(pod, 0),
-                'error_rate': (pod_error_counts.get(pod, 0) / pod_counts[pod]) * 100 if pod_counts[pod] > 0 else 0
-            }
-            for pod in pod_counts
-        ]
+        # Get container status from pod status
+        container_statuses = pod['status'].get('containerStatuses', [])
+        init_container_statuses = pod['status'].get('initContainerStatuses', [])
         
-        # Sort by error rate (descending)
-        pod_error_rates.sort(key=lambda x: x['error_rate'], reverse=True)
+        # Combine both types of container statuses
+        all_statuses = container_statuses + init_container_statuses
         
-        return {
-            'total_entries': total_count,
-            'by_severity': {severity: count for severity, count in severity_counts.items()},
-            'error_rate': error_rate,
-            'pods': pod_error_rates
+        # Find the status for this container
+        container_status = next((status for status in all_statuses if status['name'] == container_name), None)
+        
+        if not container_status:
+            return issues
+        
+        # Check for restarts
+        restart_count = container_status.get('restartCount', 0)
+        if restart_count > 5:
+            issues.append(f"High restart count ({restart_count})")
+            
+            self.add_finding(
+                component=f"Pod/{pod['metadata']['name']}/{container_name}",
+                issue=f"Container has restarted {restart_count} times",
+                severity="high" if restart_count > 10 else "medium",
+                evidence=f"Container {container_name} in pod {pod['metadata']['name']} has a restart count of {restart_count}",
+                recommendation="Investigate logs for crash causes and ensure the container is properly configured"
+            )
+        
+        # Check last state if container is not ready
+        if not container_status.get('ready', True):
+            last_state = container_status.get('lastState', {})
+            
+            if 'terminated' in last_state:
+                terminated = last_state['terminated']
+                exit_code = terminated.get('exitCode', 0)
+                reason = terminated.get('reason', 'Unknown')
+                
+                if exit_code != 0:
+                    issues.append(f"Container terminated with exit code {exit_code} ({reason})")
+                    
+                    self.add_finding(
+                        component=f"Pod/{pod['metadata']['name']}/{container_name}",
+                        issue=f"Container terminated with non-zero exit code {exit_code}",
+                        severity="high",
+                        evidence=f"Termination reason: {reason}",
+                        recommendation="Check container logs for error details and fix the underlying issue"
+                    )
+            
+            elif 'waiting' in last_state:
+                waiting = last_state['waiting']
+                reason = waiting.get('reason', 'Unknown')
+                message = waiting.get('message', '')
+                
+                issues.append(f"Container in waiting state: {reason}")
+                
+                self.add_finding(
+                    component=f"Pod/{pod['metadata']['name']}/{container_name}",
+                    issue=f"Container is in waiting state with reason: {reason}",
+                    severity="medium",
+                    evidence=f"Waiting message: {message}",
+                    recommendation="Address the issue preventing the container from starting"
+                )
+        
+        return issues
+    
+    def _analyze_pod_conditions(self, pods):
+        """
+        Analyze pod conditions for issues.
+        
+        Args:
+            pods: List of pod data
+        """
+        condition_issues = []
+        
+        for pod in pods:
+            pod_name = pod['metadata']['name']
+            conditions = pod['status'].get('conditions', [])
+            
+            # Check for unschedulable pods
+            for condition in conditions:
+                condition_type = condition.get('type', '')
+                status = condition.get('status', '')
+                reason = condition.get('reason', '')
+                message = condition.get('message', '')
+                
+                if condition_type == 'PodScheduled' and status == 'False':
+                    condition_issues.append((pod_name, 'Unschedulable', reason, message))
+                    
+                    self.add_finding(
+                        component=f"Pod/{pod_name}",
+                        issue=f"Pod cannot be scheduled",
+                        severity="high",
+                        evidence=f"Reason: {reason}, Message: {message}",
+                        recommendation="Check node resources, taints, tolerations, and node selectors"
+                    )
+                
+                elif condition_type == 'Ready' and status == 'False':
+                    condition_issues.append((pod_name, 'Not Ready', reason, message))
+                    
+                    self.add_finding(
+                        component=f"Pod/{pod_name}",
+                        issue=f"Pod is not in Ready state",
+                        severity="medium",
+                        evidence=f"Reason: {reason}, Message: {message}",
+                        recommendation="Investigate container statuses and logs for errors"
+                    )
+        
+        if condition_issues:
+            self.add_reasoning_step(
+                observation=f"Found {len(condition_issues)} pods with condition issues",
+                conclusion="Pod conditions indicate scheduling or readiness problems"
+            )
+        else:
+            self.add_reasoning_step(
+                observation="No pod condition issues detected",
+                conclusion="All pods appear to be properly scheduled and ready"
+            )
+    
+    def _analyze_init_containers(self, pods):
+        """
+        Analyze init container issues.
+        
+        Args:
+            pods: List of pod data
+        """
+        init_container_issues = []
+        
+        for pod in pods:
+            pod_name = pod['metadata']['name']
+            init_container_statuses = pod['status'].get('initContainerStatuses', [])
+            
+            for status in init_container_statuses:
+                container_name = status.get('name', '')
+                ready = status.get('ready', False)
+                
+                if not ready:
+                    state = status.get('state', {})
+                    
+                    if 'waiting' in state:
+                        waiting = state['waiting']
+                        reason = waiting.get('reason', 'Unknown')
+                        message = waiting.get('message', '')
+                        
+                        init_container_issues.append((pod_name, container_name, reason, message))
+                        
+                        self.add_finding(
+                            component=f"Pod/{pod_name}/init/{container_name}",
+                            issue=f"Init container is waiting with reason: {reason}",
+                            severity="high",
+                            evidence=f"Message: {message}",
+                            recommendation="Check init container logs and configuration"
+                        )
+                    
+                    elif 'terminated' in state:
+                        terminated = state['terminated']
+                        exit_code = terminated.get('exitCode', 0)
+                        reason = terminated.get('reason', 'Unknown')
+                        
+                        if exit_code != 0:
+                            init_container_issues.append((pod_name, container_name, reason, f"Exit code: {exit_code}"))
+                            
+                            self.add_finding(
+                                component=f"Pod/{pod_name}/init/{container_name}",
+                                issue=f"Init container terminated with non-zero exit code {exit_code}",
+                                severity="high",
+                                evidence=f"Termination reason: {reason}",
+                                recommendation="Check init container logs for error details"
+                            )
+        
+        if init_container_issues:
+            self.add_reasoning_step(
+                observation=f"Found {len(init_container_issues)} init container issues",
+                conclusion="Init container failures are preventing pods from starting"
+            )
+        else:
+            self.add_reasoning_step(
+                observation="No init container issues detected",
+                conclusion="All init containers appear to be functioning correctly"
+            )
+    
+    def _check_for_no_logs(self, pods):
+        """
+        Check for pods that should have logs but don't.
+        
+        Args:
+            pods: List of pod data
+        """
+        # This is a simplified implementation; in a real system, you would
+        # need more sophisticated logic to determine if a pod should have logs
+        for pod in pods:
+            pod_name = pod['metadata']['name']
+            phase = pod['status'].get('phase', '')
+            
+            # Only check running pods that have been up for some time
+            if phase == 'Running':
+                containers = pod['spec']['containers']
+                
+                for container in containers:
+                    container_name = container['name']
+                    logs = self.k8s_client.get_pod_logs(pod_name, pod['metadata']['namespace'], container_name)
+                    
+                    if not logs:
+                        # Check when the pod started
+                        start_time = pod['status'].get('startTime', '')
+                        current_time = self.k8s_client.get_current_time()
+                        
+                        # If pod has been running for more than 5 minutes but has no logs
+                        # Note: This is a simplified check; in reality, you would parse and compare the times
+                        if start_time and (current_time - start_time).total_seconds() > 300:
+                            self.add_finding(
+                                component=f"Pod/{pod_name}/{container_name}",
+                                issue=f"Container has been running for over 5 minutes but has no logs",
+                                severity="medium",
+                                evidence=f"No log output detected for container {container_name}",
+                                recommendation="Verify the application is properly writing to stdout/stderr and not failing silently"
+                            )
+                            
+                            self.add_reasoning_step(
+                                observation=f"No logs found for {pod_name}/{container_name} despite running state",
+                                conclusion="Container may be failing silently or not properly logging to stdout/stderr"
+                            )
+    
+    def _determine_error_severity(self, error_type):
+        """
+        Determine the severity level for a specific error type.
+        
+        Args:
+            error_type: Type of error
+            
+        Returns:
+            str: Severity level (critical, high, medium, low, info)
+        """
+        high_severity_errors = ['oom_kill', 'crash_loop', 'image_pull']
+        medium_severity_errors = ['connection_refused', 'timeout', 'volume_mount', 'dns_resolution', 'internal_server_error']
+        low_severity_errors = ['permission_denied', 'authentication', 'config_error']
+        
+        if error_type in high_severity_errors:
+            return "high"
+        elif error_type in medium_severity_errors:
+            return "medium"
+        elif error_type in low_severity_errors:
+            return "low"
+        else:
+            return "info"
+    
+    def _format_error_type(self, error_type):
+        """
+        Format error type for display.
+        
+        Args:
+            error_type: Type of error
+            
+        Returns:
+            str: Formatted error type
+        """
+        return ' '.join(word.capitalize() for word in error_type.split('_'))
+    
+    def _get_recommendation_for_error(self, error_type):
+        """
+        Get a recommendation based on the error type.
+        
+        Args:
+            error_type: Type of error
+            
+        Returns:
+            str: Recommendation
+        """
+        recommendations = {
+            'oom_kill': "Increase memory limits for the container or optimize the application's memory usage",
+            'connection_refused': "Check network policies, service endpoints, and ensure the target service is running",
+            'permission_denied': "Verify RBAC permissions, service account settings, and security contexts",
+            'timeout': "Check for network issues, increase timeout values, or optimize the slow operation",
+            'crash_loop': "Investigate container logs for crash causes and fix the underlying application issue",
+            'api_error': "Check for Kubernetes API server issues or problems with the client configuration",
+            'volume_mount': "Verify PVC status, storage class availability, and volume permissions",
+            'image_pull': "Ensure the image exists, credentials are correct, and network connectivity to the registry",
+            'dns_resolution': "Check CoreDNS/kube-dns functionality and network policies that might block DNS",
+            'authentication': "Verify credentials, tokens, and authentication configuration",
+            'config_error': "Check that all required ConfigMaps and Secrets exist and are correctly referenced",
+            'internal_server_error': "Investigate server-side issues in the dependent service",
+            'exception': "Debug the application code to fix the exception"
         }
+        
+        return recommendations.get(error_type, "Investigate the logs in detail to identify the root cause")
