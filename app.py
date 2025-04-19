@@ -17,7 +17,8 @@ from components.interactive_session import (
 )
 from agents.mcp_coordinator import MCPCoordinator
 from utils.k8s_client import K8sClient
-from utils.mock_k8s_client import MockK8sClient
+# Don't use mock implementations - user requires live K8s cluster
+# from utils.mock_k8s_client import MockK8sClient
 
 # Initialize the Kubernetes client using your live cluster configuration
 k8s_client = K8sClient()
@@ -72,7 +73,7 @@ def main():
     selected_context, selected_namespace, analysis_type, submitted, problem_description = render_sidebar(k8s_client)
     
     # Main content area
-    if isinstance(k8s_client, MockK8sClient):
+    if False:  # Removed MockK8sClient - we only use live K8s data
         st.info("⚠️ Using mock Kubernetes data for testing and demonstration purposes.")
         st.write("The analysis will be performed on a simulated Kubernetes cluster with deliberately problematic microservices.")
         with st.expander("Mock Cluster Description"):
