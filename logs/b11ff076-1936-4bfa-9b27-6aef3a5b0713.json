@@ -1,0 +1,66 @@
+{
+  "id": "b11ff076-1936-4bfa-9b27-6aef3a5b0713",
+  "title": "New Investigation (2025-04-19 21:56)",
+  "namespace": "default",
+  "context": "",
+  "created_at": "20250419_215653",
+  "updated_at": "20250419_215719",
+  "summary": "Investigation of 10 problematic pods in namespace 'default'.",
+  "status": "in_progress",
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Investigation started at 2025-04-19 21:56:53",
+      "timestamp": "20250419_215653"
+    },
+    {
+      "role": "user",
+      "content": "How is my cluster",
+      "timestamp": "20250419_215709"
+    },
+    {
+      "role": "assistant",
+      "content": "Based on my analysis of your Kubernetes cluster, I've detected 10 problematic pods including configmap-error, failing-job-2jdjm, failing-job-4ndjw, and 7 more. There are also 5 recent warning/error events that may indicate issues. I recommend checking the suggested actions below to investigate further.",
+      "timestamp": "20250419_215709"
+    },
+    {
+      "role": "assistant",
+      "content": "Analysis of Pod/failing-job-2jdjm completed.",
+      "timestamp": "20250419_215719"
+    }
+  ],
+  "evidence": {
+    "Pod_details": [
+      {
+        "data": {
+          "error": "Failed to get Pod/failing-job-2jdjm: time data '2025-04-18T06:43:28+00:00' does not match format '%Y-%m-%dT%H:%M:%SZ'"
+        },
+        "timestamp": "20250419_215719"
+      }
+    ]
+  },
+  "agent_findings": {},
+  "next_actions": [
+    {
+      "text": "Run a comprehensive analysis of your namespace",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "comprehensive"
+      }
+    },
+    {
+      "text": "Check for problematic pods",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "resources"
+      }
+    },
+    {
+      "text": "View recent events",
+      "action": {
+        "type": "check_events",
+        "field_selector": "type!=Normal"
+      }
+    }
+  ]
+}

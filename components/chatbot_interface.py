@@ -477,24 +477,54 @@ def render_chatbot_interface(
                     # Process content to escape HTML and handle newlines
                     processed_content = content.replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
                     
-                    # Display using chat_message component
+                    # Display using chat_message component with right/left justification
                     if role == 'user':
-                        # Create columns for alignment (empty left, content in middle, empty right)
-                        cols = st.columns([0.2, 0.6, 0.2])
+                        # User messages on the right
+                        cols = st.columns([3, 7])  # Push content to the right
                         with cols[1]:
-                            st.info(f"{content}\n\n*{formatted_time}*")
+                            # Use a custom container with CSS for right alignment
+                            st.markdown(f"""
+                            <div style="display: flex; justify-content: flex-end;">
+                                <div style="background-color: #E0E7FF; border-radius: 15px 15px 0 15px; 
+                                           padding: 10px 15px; max-width: 90%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                    <div style="text-align: right; color: #333;">{content}</div>
+                                    <div style="font-size: 8px; color: #999; text-align: right; margin-top: 3px;">{formatted_time}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
                     
                     elif role == 'assistant':
-                        # Create columns for alignment (empty left, content in middle, empty right)
-                        cols = st.columns([0.2, 0.6, 0.2])
-                        with cols[1]:
-                            st.success(f"**AI**: {content}\n\n*{formatted_time}*")
+                        # AI messages on the left
+                        cols = st.columns([7, 3])  # Push content to the left
+                        with cols[0]:
+                            # Use a custom container with CSS for left alignment
+                            st.markdown(f"""
+                            <div style="display: flex; align-items: flex-start;">
+                                <div style="min-width: 30px; height: 30px; margin-right: 8px; background-color: #3F51B5; border-radius: 50%; 
+                                         display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 12px;">
+                                    <span>AI</span>
+                                </div>
+                                <div style="background-color: #F0F7FF; border-radius: 15px 15px 15px 0; 
+                                           padding: 10px 15px; max-width: 90%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                                    <div style="color: #333;">{content}</div>
+                                    <div style="font-size: 8px; color: #999; text-align: right; margin-top: 3px;">{formatted_time}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
                     
                     elif role == 'system':
-                        # System messages are displayed as warnings
-                        cols = st.columns([0.2, 0.6, 0.2])
+                        # System messages centered
+                        cols = st.columns([2, 8, 2])
                         with cols[1]:
-                            st.warning(f"{content}\n\n*{formatted_time}*")
+                            st.markdown(f"""
+                            <div style="display: flex; justify-content: center; margin: 5px 0;">
+                                <div style="background-color: #FFFFCC; border-radius: 12px; padding: 5px 12px; 
+                                           max-width: 70%; font-style: italic; text-align: center; font-size: 90%;">
+                                    <div style="color: #555;">{content}</div>
+                                    <div style="font-size: 8px; color: #999; text-align: right; margin-top: 3px;">{formatted_time}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
             
             # Auto-scroll to the bottom using JavaScript
             st.markdown("""
@@ -542,6 +572,10 @@ def render_chatbot_interface(
                         if suggestion_type == 'run_agent':
                             agent_type = suggestion_action.get('agent_type', 'unknown')
                             with st.spinner(f"Running {agent_type} agent analysis..."):
+                                # First add a message to show what action the user selected 
+                                user_message = f"Run {agent_type} agent analysis"
+                                add_message('user', user_message, investigation_id, db_handler)
+                                
                                 # Run the agent and get results
                                 agent_results = coordinator.run_agent_analysis(
                                     agent_type=agent_type,
@@ -576,6 +610,10 @@ def render_chatbot_interface(
                             resource_name = suggestion_action.get('resource_name', 'unknown')
                             
                             with st.spinner(f"Checking {resource_type}/{resource_name}..."):
+                                # First add a message to show what action the user selected
+                                user_message = f"Check {resource_type}/{resource_name}"
+                                add_message('user', user_message, investigation_id, db_handler)
+                                
                                 # Get resource details
                                 resource_details = k8s_client.get_resource_details(
                                     resource_type=resource_type,
@@ -608,6 +646,12 @@ def render_chatbot_interface(
                             container_name = suggestion_action.get('container_name', None)
                             
                             with st.spinner(f"Fetching logs for {pod_name}..."):
+                                # First add a message to show what action the user selected
+                                user_message = f"Check logs for {pod_name}"
+                                if container_name:
+                                    user_message += f" (container: {container_name})"
+                                add_message('user', user_message, investigation_id, db_handler)
+                                
                                 # Get pod logs
                                 logs = k8s_client.get_pod_logs(
                                     pod_name=pod_name,
@@ -639,6 +683,12 @@ def render_chatbot_interface(
                             field_selector = suggestion_action.get('field_selector', None)
                             
                             with st.spinner("Fetching Kubernetes events..."):
+                                # First add a message to show what action the user selected
+                                user_message = "Check Kubernetes events"
+                                if field_selector:
+                                    user_message += f" (filter: {field_selector})"
+                                add_message('user', user_message, investigation_id, db_handler)
+                                
                                 # Get events
                                 events = k8s_client.get_events(
                                     namespace=st.session_state.get('selected_namespace', 'default'),
