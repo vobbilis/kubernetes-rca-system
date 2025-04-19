@@ -18,6 +18,11 @@ class K8sClient:
         self.current_context = None
         self.available_contexts = []
         
+        # Disable SSL verification globally for the client
+        # This is necessary for working with self-signed certs like those from ngrok
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
         # Try to load the Kubernetes configuration
         self._load_config()
         
@@ -30,7 +35,14 @@ class K8sClient:
             
             if os.path.exists(custom_kubeconfig):
                 print(f"Loading Kubernetes configuration from {custom_kubeconfig}")
-                config.load_kube_config(config_file=custom_kubeconfig)
+                
+                # Configure the client to not verify SSL certificates for the API server
+                # This is necessary for connecting to ngrok endpoints with self-signed certs
+                configuration = client.Configuration()
+                configuration.verify_ssl = False
+                
+                # Load the config and apply settings
+                config.load_kube_config(config_file=custom_kubeconfig, client_configuration=configuration)
                 
                 # Get available contexts
                 k8s_config = config.list_kube_config_contexts()
@@ -65,12 +77,20 @@ class K8sClient:
                         self.connected = False
             
             if self.connected:
-                # Create Kubernetes API clients
+                # Create Kubernetes API clients with SSL verification disabled
                 print(f"Connected to Kubernetes cluster with context: {self.current_context}")
-                self.core_v1 = client.CoreV1Api()
-                self.apps_v1 = client.AppsV1Api()
-                self.networking_v1 = client.NetworkingV1Api()
-                self.custom_objects_api = client.CustomObjectsApi()
+                
+                # Create a configuration with SSL verification disabled
+                api_config = client.Configuration.get_default_copy()
+                api_config.verify_ssl = False
+                api_config.debug = True
+                api_client = client.ApiClient(api_config)
+                
+                # Initialize API clients with this configuration
+                self.core_v1 = client.CoreV1Api(api_client)
+                self.apps_v1 = client.AppsV1Api(api_client)
+                self.networking_v1 = client.NetworkingV1Api(api_client)
+                self.custom_objects_api = client.CustomObjectsApi(api_client)
                 
                 # Validate connection by making a test API call
                 try:
@@ -125,14 +145,25 @@ class K8sClient:
             return False
         
         try:
-            config.load_kube_config(context=context_name)
+            # Configure SSL validation bypass for ngrok endpoints
+            configuration = client.Configuration()
+            configuration.verify_ssl = False
+            
+            # Use the configuration when loading the context
+            config.load_kube_config(context=context_name, client_configuration=configuration)
             self.current_context = context_name
             
-            # Reinitialize API clients
-            self.core_v1 = client.CoreV1Api()
-            self.apps_v1 = client.AppsV1Api()
-            self.networking_v1 = client.NetworkingV1Api()
-            self.custom_objects_api = client.CustomObjectsApi()
+            # Create a configuration with SSL verification disabled
+            api_config = client.Configuration.get_default_copy()
+            api_config.verify_ssl = False
+            api_config.debug = True
+            api_client = client.ApiClient(api_config)
+            
+            # Reinitialize API clients with SSL verification disabled
+            self.core_v1 = client.CoreV1Api(api_client)
+            self.apps_v1 = client.AppsV1Api(api_client)
+            self.networking_v1 = client.NetworkingV1Api(api_client)
+            self.custom_objects_api = client.CustomObjectsApi(api_client)
             
             return True
         except Exception as e:
