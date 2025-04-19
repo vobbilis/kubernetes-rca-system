@@ -17,6 +17,8 @@ class K8sClient:
         self.connected = False
         self.current_context = None
         self.available_contexts = []
+        self.last_connection_error = None  # Store the last connection error for debugging
+        self.server_url = None  # Store the server URL for reference
         
         # Disable SSL verification globally for the client
         # This is necessary for working with self-signed certs like those from ngrok
@@ -137,10 +139,13 @@ class K8sClient:
                     print(f"Successfully validated Kubernetes API connection. Found namespaces: {[ns.metadata.name for ns in namespaces.items]}")
                     http_client.HTTPConnection.debuglevel = 0
                 except Exception as api_error:
-                    print(f"Failed to validate Kubernetes API connection: {api_error}")
+                    error_msg = f"Failed to validate Kubernetes API connection: {api_error}"
+                    print(error_msg)
                     print(f"DEBUG: API Host was: {api_config.host}")
                     print(f"DEBUG: SSL Verification was: {api_config.verify_ssl}")
                     self.connected = False
+                    self.last_connection_error = error_msg
+                    self.server_url = api_config.host
             else:
                 # If custom config doesn't exist, try in-cluster config
                 try:
@@ -170,6 +175,15 @@ class K8sClient:
             bool: True if connected, False otherwise
         """
         return self.connected
+        
+    def get_connection_error(self):
+        """
+        Get the last connection error message.
+        
+        Returns:
+            str: Last connection error message or None if no error
+        """
+        return self.last_connection_error
     
     def get_available_contexts(self):
         """

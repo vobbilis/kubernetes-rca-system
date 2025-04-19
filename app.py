@@ -33,7 +33,13 @@ db_handler = DBHandler()
 # Check connection status
 if not k8s_client.is_connected():
     st.sidebar.error("❌ Could not connect to your Kubernetes cluster")
-    st.sidebar.info("Please check your kubeconfig file and ensure your ngrok tunnel is working")
+    error_message = k8s_client.get_connection_error() or "Unknown connection error"
+    server_url = k8s_client.server_url
+    
+    # If the error has the ngrok error code, display a more specific message
+    if "ERR_NGROK_3200" in error_message:
+        st.sidebar.error("The ngrok tunnel endpoint is offline")
+        st.sidebar.info(f"The ngrok endpoint {server_url} in your kubeconfig is not active. Please restart your ngrok tunnel or update the kubeconfig with a new endpoint.")
 
 # Initialize environment - try Anthropic by default since OpenAI quota is exceeded
 llm_provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
