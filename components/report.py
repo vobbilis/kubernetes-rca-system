@@ -29,8 +29,25 @@ def render_report(analysis_results, analysis_type):
     # Create tabs for the report sections
     if analysis_type == 'comprehensive':
         _render_comprehensive_report(analysis_results)
+    elif analysis_type == 'resources':
+        # For resource analysis, show resource status summaries and findings
+        resource_count = analysis_results.get('resource_count', {})
+        findings = analysis_results.get('findings', [])
+        reasoning_steps = analysis_results.get('reasoning_steps', [])
+        
+        # Show resource counts
+        if resource_count:
+            st.subheader("Resource Summary")
+            cols = st.columns(len(resource_count))
+            
+            for i, (resource_type, count) in enumerate(resource_count.items()):
+                with cols[i]:
+                    st.metric(f"{resource_type.capitalize()}", count)
+        
+        _render_findings_section(findings)
+        _render_reasoning_section(reasoning_steps)
     else:
-        # For single agent analysis, show findings and reasoning steps
+        # For other single agent analysis, show findings and reasoning steps
         findings = analysis_results.get('findings', [])
         reasoning_steps = analysis_results.get('reasoning_steps', [])
         
@@ -45,7 +62,7 @@ def _render_comprehensive_report(results):
         results: Comprehensive analysis results
     """
     # Create tabs for the different report sections
-    tabs = st.tabs(["Root Causes", "Correlated Issues", "Metrics", "Logs", "Topology", "Events", "Traces"])
+    tabs = st.tabs(["Root Causes", "Correlated Issues", "Resources", "Metrics", "Logs", "Topology", "Events", "Traces"])
     
     # Root Causes tab
     with tabs[0]:
@@ -110,29 +127,52 @@ def _render_comprehensive_report(results):
         else:
             st.info("No correlated issues identified in the analysis.")
     
-    # Metrics tab
+    # Resources tab
     with tabs[2]:
-        metrics_results = results.get('agent_results', {}).get('metrics', {})
+        resources_results = results.get('resources', {})
+        if resources_results:
+            # Display resource counts if available
+            resource_count = resources_results.get('resource_count', {})
+            if resource_count:
+                st.subheader("Resource Summary")
+                cols = st.columns(len(resource_count))
+                
+                for i, (resource_type, count) in enumerate(resource_count.items()):
+                    with cols[i]:
+                        st.metric(f"{resource_type.capitalize()}", count)
+            
+            # Display findings
+            findings = resources_results.get('findings', [])
+            reasoning_steps = resources_results.get('reasoning_steps', [])
+            
+            _render_findings_section(findings)
+            _render_reasoning_section(reasoning_steps)
+        else:
+            st.info("No resource analysis results available.")
+    
+    # Metrics tab
+    with tabs[3]:
+        metrics_results = results.get('metrics', {})
         _render_agent_results(metrics_results, "Metrics Analysis")
     
     # Logs tab
-    with tabs[3]:
-        logs_results = results.get('agent_results', {}).get('logs', {})
+    with tabs[4]:
+        logs_results = results.get('logs', {})
         _render_agent_results(logs_results, "Logs Analysis")
     
     # Topology tab
-    with tabs[4]:
-        topology_results = results.get('agent_results', {}).get('topology', {})
+    with tabs[5]:
+        topology_results = results.get('topology', {})
         _render_agent_results(topology_results, "Topology Analysis")
     
     # Events tab
-    with tabs[5]:
-        events_results = results.get('agent_results', {}).get('events', {})
+    with tabs[6]:
+        events_results = results.get('events', {})
         _render_agent_results(events_results, "Events Analysis")
     
     # Traces tab
-    with tabs[6]:
-        traces_results = results.get('agent_results', {}).get('traces', {})
+    with tabs[7]:
+        traces_results = results.get('traces', {})
         _render_agent_results(traces_results, "Traces Analysis")
 
 def _render_agent_results(agent_results, title):

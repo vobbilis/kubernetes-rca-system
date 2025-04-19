@@ -409,7 +409,10 @@ class MCPCoordinator:
         Returns:
             Dictionary with comprehensive analysis results
         """
-        # Run each individual analysis
+        # First run the resource analysis as our starting point
+        self.run_resource_analysis(analysis_id)
+        
+        # Then run each other individual analysis
         self.run_metrics_analysis(analysis_id)
         self.run_logs_analysis(analysis_id)
         self.run_events_analysis(analysis_id)
@@ -425,6 +428,7 @@ class MCPCoordinator:
         # Return comprehensive results
         analysis = self.analyses[analysis_id]
         return {
+            "resources": analysis["results"].get("resources", {}),
             "metrics": analysis["results"].get("metrics", {}),
             "logs": analysis["results"].get("logs", {}),
             "events": analysis["results"].get("events", {}),

@@ -59,6 +59,7 @@ def render_sidebar(k8s_client):
         "Analysis Type",
         options=[
             "comprehensive",
+            "resources",
             "metrics",
             "logs",
             "traces",
@@ -67,6 +68,7 @@ def render_sidebar(k8s_client):
         ],
         help=(
             "Comprehensive: Run all specialized agents\n"
+            "Resources: Basic Kubernetes resource health check\n"
             "Metrics: Resource usage and performance\n"
             "Logs: Container logs analysis\n"
             "Traces: Distributed tracing analysis\n"
