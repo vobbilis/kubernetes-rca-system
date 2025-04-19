@@ -1,0 +1,339 @@
+import streamlit as st
+import time
+import json
+from typing import Dict, List, Any, Optional
+
+def init_chatbot_interface():
+    """Initialize the chatbot interface state variables."""
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    if 'current_suggestions' not in st.session_state:
+        st.session_state.current_suggestions = []
+    
+    if 'user_input' not in st.session_state:
+        st.session_state.user_input = ""
+
+def add_message(role: str, content: str, investigation_id: Optional[str] = None, db_handler = None):
+    """
+    Add a message to the chat history.
+    
+    Args:
+        role: The role of the message sender ('user', 'assistant', or 'system')
+        content: The message content
+        investigation_id: Optional investigation ID to persist the message
+        db_handler: Optional database handler to persist the message
+    """
+    # Add to session state
+    st.session_state.chat_history.append({
+        'role': role,
+        'content': content,
+        'timestamp': time.time()
+    })
+    
+    # Persist to database if provided
+    if investigation_id and db_handler:
+        db_handler.add_conversation_entry(
+            investigation_id=investigation_id,
+            role=role,
+            content=content
+        )
+
+def add_suggestions(suggestions: List[Dict[str, Any]], investigation_id: Optional[str] = None, db_handler = None):
+    """
+    Add suggested next actions to the chatbot interface.
+    
+    Args:
+        suggestions: List of suggestion objects with 'text' and 'action' keys
+        investigation_id: Optional investigation ID to persist the suggestions
+        db_handler: Optional database handler to persist the suggestions
+    """
+    st.session_state.current_suggestions = suggestions
+    
+    # Persist to database if provided
+    if investigation_id and db_handler:
+        db_handler.update_next_actions(
+            investigation_id=investigation_id,
+            next_actions=suggestions
+        )
+
+def load_chat_history(investigation_id: str, db_handler):
+    """
+    Load chat history from the database.
+    
+    Args:
+        investigation_id: Investigation ID to load history from
+        db_handler: Database handler to load the history
+    """
+    investigation = db_handler.get_investigation(investigation_id)
+    if not investigation:
+        return
+    
+    # Load conversation history
+    if 'conversation' in investigation:
+        st.session_state.chat_history = investigation['conversation']
+    
+    # Load suggested next actions
+    if 'next_actions' in investigation:
+        st.session_state.current_suggestions = investigation['next_actions']
+
+def render_chatbot_interface(
+    coordinator,
+    k8s_client,
+    investigation_id: Optional[str] = None,
+    db_handler = None
+):
+    """
+    Render the chatbot interface.
+    
+    Args:
+        coordinator: The MCP coordinator instance
+        k8s_client: Kubernetes client instance
+        investigation_id: Optional investigation ID for persistence
+        db_handler: Optional database handler for persistence
+    """
+    st.title("Kubernetes Root Cause Analysis")
+    
+    # Load chat history if this is a continuing investigation
+    if investigation_id and db_handler and not st.session_state.chat_history:
+        load_chat_history(investigation_id, db_handler)
+    
+    # Chat history container
+    chat_container = st.container()
+    
+    # User input area
+    user_input = st.text_input("Ask about your Kubernetes cluster:", 
+                              key="user_input_field", 
+                              placeholder="e.g., What's wrong with my frontend service?")
+    
+    # Add a send button
+    send_col, clear_col = st.columns([5, 1])
+    with send_col:
+        send_button = st.button("Send", type="primary", key="send_button")
+    with clear_col:
+        clear_button = st.button("Clear", key="clear_button")
+    
+    # Handle clear button
+    if clear_button:
+        st.session_state.chat_history = []
+        st.session_state.current_suggestions = []
+        st.session_state.user_input = ""
+        st.rerun()
+    
+    # Process user input
+    if send_button and user_input:
+        # Add user message to history
+        add_message('user', user_input, investigation_id, db_handler)
+        
+        # Clear input field
+        st.session_state.user_input = ""
+        
+        # Generate response with spinner
+        with st.spinner("Analyzing..."):
+            # Get the response from the coordinator
+            response = coordinator.process_user_query(
+                query=user_input,
+                namespace=st.session_state.get('selected_namespace', 'default'),
+                context=st.session_state.get('selected_context', None)
+            )
+            
+            # Add assistant response to history
+            add_message('assistant', response.get('response', "I couldn't generate a response."), 
+                       investigation_id, db_handler)
+            
+            # Generate suggested next actions
+            suggestions = response.get('suggestions', [])
+            add_suggestions(suggestions, investigation_id, db_handler)
+            
+            # If there's evidence or findings, store them
+            if investigation_id and db_handler:
+                if 'evidence' in response:
+                    for evidence_type, evidence_data in response.get('evidence', {}).items():
+                        db_handler.add_evidence(
+                            investigation_id=investigation_id,
+                            evidence_type=evidence_type,
+                            evidence_data=evidence_data
+                        )
+                
+                if 'findings' in response:
+                    db_handler.add_agent_findings(
+                        investigation_id=investigation_id,
+                        agent_type='coordinator',
+                        findings=response.get('findings', {})
+                    )
+            
+            # If there's a generated summary, update it
+            if investigation_id and db_handler and 'summary' in response:
+                db_handler.update_summary(
+                    investigation_id=investigation_id,
+                    summary=response.get('summary', '')
+                )
+        
+        st.rerun()
+    
+    # Render chat history
+    with chat_container:
+        for message in st.session_state.chat_history:
+            role = message.get('role', 'unknown')
+            content = message.get('content', '')
+            
+            if role == 'user':
+                st.markdown(f"**User:** {content}")
+            elif role == 'assistant':
+                st.markdown(f"**AI:** {content}")
+            elif role == 'system':
+                st.markdown(f"*System: {content}*")
+    
+    # Render suggested actions
+    if st.session_state.current_suggestions:
+        st.markdown("---")
+        st.subheader("Suggested Next Actions")
+        
+        # Display each suggestion as a button
+        for i, suggestion in enumerate(st.session_state.current_suggestions):
+            suggestion_text = suggestion.get('text', f"Suggestion {i+1}")
+            suggestion_action = suggestion.get('action', {})
+            suggestion_type = suggestion_action.get('type', 'unknown')
+            
+            # Create a button for the suggestion
+            if st.button(suggestion_text, key=f"suggestion_{i}"):
+                # Handle different suggestion types
+                if suggestion_type == 'run_agent':
+                    agent_type = suggestion_action.get('agent_type', 'unknown')
+                    with st.spinner(f"Running {agent_type} agent analysis..."):
+                        # Run the agent and get results
+                        agent_results = coordinator.run_agent_analysis(
+                            agent_type=agent_type,
+                            namespace=st.session_state.get('selected_namespace', 'default'),
+                            context=st.session_state.get('selected_context', None)
+                        )
+                        
+                        # Add the results to the chat history
+                        add_message('assistant', agent_results.get('summary', 
+                                                                  f"I've analyzed the {agent_type} data."), 
+                                   investigation_id, db_handler)
+                        
+                        # Store the agent findings if there's an investigation ID
+                        if investigation_id and db_handler:
+                            db_handler.add_agent_findings(
+                                investigation_id=investigation_id,
+                                agent_type=agent_type,
+                                findings=agent_results
+                            )
+                            
+                            # Add evidence if available
+                            if 'evidence' in agent_results:
+                                for evidence_type, evidence_data in agent_results.get('evidence', {}).items():
+                                    db_handler.add_evidence(
+                                        investigation_id=investigation_id,
+                                        evidence_type=f"{agent_type}_{evidence_type}",
+                                        evidence_data=evidence_data
+                                    )
+                
+                elif suggestion_type == 'check_resource':
+                    resource_type = suggestion_action.get('resource_type', 'unknown')
+                    resource_name = suggestion_action.get('resource_name', 'unknown')
+                    
+                    with st.spinner(f"Checking {resource_type}/{resource_name}..."):
+                        # Get resource details
+                        resource_details = k8s_client.get_resource_details(
+                            resource_type=resource_type,
+                            resource_name=resource_name,
+                            namespace=st.session_state.get('selected_namespace', 'default')
+                        )
+                        
+                        # Have the coordinator analyze the resource
+                        analysis = coordinator.analyze_resource(
+                            resource_type=resource_type,
+                            resource_name=resource_name,
+                            resource_details=resource_details
+                        )
+                        
+                        # Add the results to the chat history
+                        add_message('assistant', analysis.get('summary', 
+                                                            f"I've analyzed the {resource_type}/{resource_name} resource."), 
+                                   investigation_id, db_handler)
+                        
+                        # Store the evidence if there's an investigation ID
+                        if investigation_id and db_handler:
+                            db_handler.add_evidence(
+                                investigation_id=investigation_id,
+                                evidence_type=f"{resource_type}_details",
+                                evidence_data=resource_details
+                            )
+                
+                elif suggestion_type == 'check_logs':
+                    pod_name = suggestion_action.get('pod_name', 'unknown')
+                    container_name = suggestion_action.get('container_name', None)
+                    
+                    with st.spinner(f"Fetching logs for {pod_name}..."):
+                        # Get pod logs
+                        logs = k8s_client.get_pod_logs(
+                            pod_name=pod_name,
+                            container_name=container_name,
+                            namespace=st.session_state.get('selected_namespace', 'default')
+                        )
+                        
+                        # Have the coordinator analyze the logs
+                        log_analysis = coordinator.analyze_logs(
+                            pod_name=pod_name,
+                            container_name=container_name,
+                            logs=logs
+                        )
+                        
+                        # Add the results to the chat history
+                        add_message('assistant', log_analysis.get('summary', 
+                                                                f"I've analyzed the logs for {pod_name}."), 
+                                   investigation_id, db_handler)
+                        
+                        # Store the logs if there's an investigation ID
+                        if investigation_id and db_handler:
+                            db_handler.add_evidence(
+                                investigation_id=investigation_id,
+                                evidence_type=f"pod_logs_{pod_name}",
+                                evidence_data=logs
+                            )
+                
+                elif suggestion_type == 'check_events':
+                    field_selector = suggestion_action.get('field_selector', None)
+                    
+                    with st.spinner("Fetching Kubernetes events..."):
+                        # Get events
+                        events = k8s_client.get_events(
+                            namespace=st.session_state.get('selected_namespace', 'default'),
+                            field_selector=field_selector
+                        )
+                        
+                        # Have the coordinator analyze the events
+                        events_analysis = coordinator.analyze_events(events=events)
+                        
+                        # Add the results to the chat history
+                        add_message('assistant', events_analysis.get('summary', "I've analyzed the Kubernetes events."), 
+                                   investigation_id, db_handler)
+                        
+                        # Store the events if there's an investigation ID
+                        if investigation_id and db_handler:
+                            db_handler.add_evidence(
+                                investigation_id=investigation_id,
+                                evidence_type="kubernetes_events",
+                                evidence_data=events
+                            )
+                
+                elif suggestion_type == 'query':
+                    query = suggestion_action.get('query', '')
+                    
+                    # Just add the selected query to the input box
+                    st.session_state.user_input = query
+                
+                # Update suggestions based on the action taken
+                update_response = coordinator.update_suggestions_after_action(
+                    previous_suggestions=st.session_state.current_suggestions,
+                    selected_suggestion_index=i,
+                    namespace=st.session_state.get('selected_namespace', 'default'),
+                    context=st.session_state.get('selected_context', None)
+                )
+                
+                if update_response:
+                    add_suggestions(update_response.get('suggestions', []), investigation_id, db_handler)
+                
+                st.rerun()

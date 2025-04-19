@@ -274,26 +274,33 @@ class DBHandler:
         investigations = []
         
         for filename in os.listdir(self.base_dir):
-            if filename.endswith('.json'):
+            if filename.endswith('.json') and not filename.endswith('_hypothesis.json'):
                 file_path = os.path.join(self.base_dir, filename)
                 try:
                     with open(file_path, 'r') as f:
                         investigation = json.load(f)
                         # Include only the metadata for listing
                         investigations.append({
-                            "id": investigation.get("id"),
-                            "title": investigation.get("title"),
-                            "namespace": investigation.get("namespace"),
-                            "created_at": investigation.get("created_at"),
-                            "updated_at": investigation.get("updated_at"),
-                            "status": investigation.get("status"),
-                            "summary": investigation.get("summary")
+                            "id": investigation.get("id", "unknown"),
+                            "title": investigation.get("title", "Untitled Investigation"),
+                            "namespace": investigation.get("namespace", "unknown"),
+                            "created_at": investigation.get("created_at", ""),
+                            "updated_at": investigation.get("updated_at", ""),
+                            "status": investigation.get("status", "unknown"),
+                            "summary": investigation.get("summary", "")
                         })
                 except Exception as e:
                     print(f"Error reading investigation file {filename}: {e}")
         
         # Sort by updated_at in descending order (most recent first)
-        investigations.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+        # Use a safe sorting method that handles None values
+        def safe_sort_key(x):
+            updated_at = x.get("updated_at")
+            if not updated_at:
+                return ""
+            return updated_at
+        
+        investigations.sort(key=safe_sort_key, reverse=True)
         
         return investigations
     

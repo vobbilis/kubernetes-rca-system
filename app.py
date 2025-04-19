@@ -12,16 +12,23 @@ from components.visualization import render_visualization
 from components.report import render_report
 from components.interactive_session import (
     init_interactive_session, 
-    start_interactive_session, 
     render_interactive_session
+)
+from components.chatbot_interface import (
+    init_chatbot_interface,
+    render_chatbot_interface
 )
 from agents.mcp_coordinator import MCPCoordinator
 from utils.k8s_client import K8sClient
+from utils.db_handler import DBHandler
 # Don't use mock implementations - user requires live K8s cluster
 # from utils.mock_k8s_client import MockK8sClient
 
 # Initialize the Kubernetes client using your live cluster configuration
 k8s_client = K8sClient()
+
+# Initialize database handler
+db_handler = DBHandler()
 
 # Check connection status
 if not k8s_client.is_connected():
@@ -56,11 +63,20 @@ if llm_provider == "openai":
 # Initialize the MCP coordinator
 coordinator = MCPCoordinator(k8s_client, provider=llm_provider)
 
+# Initialize session state for UI mode
+if 'ui_mode' not in st.session_state:
+    st.session_state.ui_mode = 'chatbot'  # Default to chatbot UI
+
+# Store globally available data in session state
+if 'selected_context' not in st.session_state:
+    st.session_state.selected_context = None
+if 'selected_namespace' not in st.session_state:
+    st.session_state.selected_namespace = None
+if 'db_handler' not in st.session_state:
+    st.session_state.db_handler = db_handler
+
 # Main application
 def main():
-    st.title("Kubernetes Root Cause Analysis System")
-    st.write("A multi-agent system for analyzing and troubleshooting cloud-native applications")
-    
     # Display LLM provider info
     with st.sidebar.expander("LLM Configuration"):
         st.write(f"Using {llm_provider.upper()} as the LLM provider")
@@ -70,29 +86,14 @@ def main():
             st.rerun()
     
     # Render the sidebar
-    selected_context, selected_namespace, analysis_type, submitted, problem_description = render_sidebar(k8s_client)
+    selected_context, selected_namespace, analysis_type, submitted, problem_description, selected_investigation = render_sidebar(k8s_client)
     
-    # Main content area
-    if False:  # Removed MockK8sClient - we only use live K8s data
-        st.info("⚠️ Using mock Kubernetes data for testing and demonstration purposes.")
-        st.write("The analysis will be performed on a simulated Kubernetes cluster with deliberately problematic microservices.")
-        with st.expander("Mock Cluster Description"):
-            st.markdown("""
-            ## Mock Cluster Description
-            
-            This mock cluster includes the following microservices in the `test-microservices` namespace:
-            
-            1. **Frontend (nginx)** - Functioning normally
-            2. **Backend** - High CPU usage issue (90% utilization)
-            3. **Database** - Frequent restart issue (CrashLoopBackOff)
-            4. **API Gateway** - Missing environment variable issue (Failed state)
-            5. **Resource Service** - High memory usage issue (89.84% utilization)
-            
-            Additionally, a network policy is incorrectly blocking traffic to the backend service.
-            
-            These issues are deliberately injected to demonstrate the root cause analysis capabilities of the system.
-            """)
-    elif not k8s_client.is_connected():
+    # Store the selected context and namespace in session state
+    st.session_state.selected_context = selected_context
+    st.session_state.selected_namespace = selected_namespace
+    
+    # Check if we're not connected to a Kubernetes cluster
+    if not k8s_client.is_connected():
         st.warning("Not connected to any Kubernetes cluster. Please configure your kubeconfig or connect to a cluster.")
         st.info("This application requires a Kubernetes cluster connection. You have a few options:")
         
@@ -120,113 +121,70 @@ def main():
             """)
         
         return
-
-    if submitted:
-        with st.spinner(f"Running {analysis_type} analysis on namespace {selected_namespace}..."):
-            # Run analysis based on the selected type and context
-            analysis_results = coordinator.run_analysis(
-                analysis_type=analysis_type,
-                namespace=selected_namespace,
-                context=selected_context,
-                problem_description=problem_description
-            )
+    
+    # If we have a selected investigation, render the chatbot interface
+    if selected_investigation:
+        render_chatbot_interface(
+            coordinator=coordinator, 
+            k8s_client=k8s_client,
+            investigation_id=selected_investigation,
+            db_handler=db_handler
+        )
+    # If we've submitted a new investigation, create it and render the chatbot
+    elif submitted:
+        render_chatbot_interface(
+            coordinator=coordinator, 
+            k8s_client=k8s_client,
+            investigation_id=st.session_state.get('current_investigation_id'),
+            db_handler=db_handler
+        )
+    # Otherwise, show a welcome message
+    else:
+        st.title("Kubernetes Root Cause Analysis System")
+        st.write("A multi-agent system for analyzing and troubleshooting cloud-native applications")
+        
+        st.info("👈 Start by selecting an existing investigation from the sidebar or create a new one.")
+        
+        # Show a brief overview of how to use the system
+        with st.expander("How to use this system"):
+            st.markdown("""
+            ## How to use the Kubernetes Root Cause Analysis System
             
-            if 'error' in analysis_results:
-                st.error(f"Error during analysis: {analysis_results['error']}")
-                return
-                
-            # Store results in session state
-            st.session_state.analysis_results = analysis_results
-            st.session_state.analysis_complete = True
-    
-    # Display results if analysis is complete
-    if st.session_state.get('analysis_complete', False):
-        analysis_results = st.session_state.analysis_results
+            This AI-powered system helps you diagnose and fix issues in your Kubernetes cluster:
+            
+            1. **Create a new investigation** by clicking the "New Investigation" button in the sidebar
+            2. **Select your Kubernetes context and namespace** to analyze
+            3. **Provide a title and description** of the problem you're experiencing
+            4. **Start the investigation** and interact with the AI chatbot
+            5. **Click on suggested actions** to guide the investigation
+            6. **View past investigations** in the sidebar to continue previous work
+            
+            The system will analyze your Kubernetes resources, logs, events, and metrics to identify root causes.
+            """)
         
-        # Display visualization
-        render_visualization(analysis_results, analysis_type)
+        # Show system capabilities
+        with st.expander("System Capabilities"):
+            st.markdown("""
+            ## System Capabilities
+            
+            This system can analyze:
+            
+            - **Kubernetes resources**: Pods, Deployments, Services, etc.
+            - **Container logs**: Identify errors and exceptions
+            - **Kubernetes events**: Detect scheduling issues, crashes, etc.
+            - **Resource metrics**: CPU, memory usage, etc.
+            - **Service topology**: Dependencies and networking issues
+            - **Distributed traces**: Request flows and latency issues
+            
+            The AI agents collaborate to analyze different aspects of your cluster and provide intelligent recommendations.
+            """)
         
-        # Display detailed report
-        render_report(analysis_results, analysis_type)
-
-        # Add option to start interactive root cause analysis
-        if not st.session_state.get('interactive_mode', False):
-            if st.button("🔍 Start Interactive Root Cause Analysis"):
-                # Extract findings for interactive analysis
-                findings = []
-                
-                # Get findings from results based on analysis type
-                if analysis_type == 'resources':
-                    # Extract findings from resource analyzer results
-                    if 'findings' in analysis_results:
-                        # Direct findings from resource analyzer
-                        findings = analysis_results.get('findings', [])
-                    
-                    # If no findings were found, scan the resources for error states directly
-                    if not findings:
-                        for resource_type, resources in analysis_results.get('resources', {}).items():
-                            for resource in resources:
-                                if resource.get('status') != 'Ready' and resource.get('status') != 'Running':
-                                    findings.append({
-                                        'component': f"{resource_type}/{resource.get('name')}",
-                                        'issue': f"Status: {resource.get('status')}",
-                                        'severity': 'critical' if resource.get('status') in ['CrashLoopBackOff', 'Error', 'ImagePullBackOff'] else 'high',
-                                        'evidence': yaml.dump(resource, default_flow_style=False)
-                                    })
-                    
-                    # Add findings from events if present
-                    if 'events' in analysis_results:
-                        for event in analysis_results.get('events', []):
-                            if event.get('type') == 'Warning':
-                                # Parse the event's involved object
-                                obj_kind = event.get('involvedObject', {}).get('kind', 'Resource')
-                                obj_name = event.get('involvedObject', {}).get('name', 'unknown')
-                                reason = event.get('reason', 'Unknown')
-                                message = event.get('message', '')
-                                
-                                # Create a finding from the event
-                                findings.append({
-                                    'component': f"{obj_kind}/{obj_name}",
-                                    'issue': f"Event {reason}: {message[:50]}...",
-                                    'severity': 'critical' if reason in ['Failed', 'Error', 'CrashLoopBackOff', 'BackOff'] else 'high',
-                                    'evidence': f"Event: {reason}\nMessage: {message}"
-                                })
-                
-                elif 'findings' in analysis_results:
-                    # Direct findings from other analysis types
-                    findings = analysis_results.get('findings', [])
-                
-                # Start the interactive session with the findings
-                start_interactive_session(findings)
-                st.rerun()
-                
-        # Export functionality
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("Export Analysis Report"):
-                report_yaml = yaml.dump(analysis_results, default_flow_style=False)
-                st.download_button(
-                    label="Download YAML Report",
-                    data=report_yaml,
-                    file_name=f"k8s_analysis_{analysis_type}_{time.strftime('%Y%m%d_%H%M%S')}.yaml",
-                    mime="application/x-yaml"
-                )
-        
-        with col2:
-            if st.button("Clear Results"):
-                st.session_state.analysis_complete = False
-                st.session_state.analysis_results = None
-                st.rerun()
-                
-        with col3:
-            if st.session_state.get('interactive_mode', False):
-                if st.button("End Interactive Session"):
-                    st.session_state.interactive_mode = False
-                    st.rerun()
-    
-    # Render the interactive session if active
-    if st.session_state.get('interactive_mode', False):
-        render_interactive_session(coordinator)
+        # Show the UI toggle
+        st.markdown("---")
+        st.caption("This is a new redesigned UI. If you prefer the classic UI, you can switch back:")
+        if st.button("Switch to Classic UI"):
+            st.session_state.ui_mode = 'classic'
+            st.rerun()
 
 if __name__ == "__main__":
     # Initialize session state
@@ -235,5 +193,8 @@ if __name__ == "__main__":
     
     # Initialize interactive session state
     init_interactive_session()
+    
+    # Initialize chatbot interface
+    init_chatbot_interface()
         
     main()
