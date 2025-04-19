@@ -84,9 +84,10 @@ if 'db_handler' not in st.session_state:
 # Main application
 def main():
     # Check URL parameters for direct navigation
-    query_params = st.experimental_get_query_params()
-    investigation_from_url = query_params.get("investigation", [None])[0]
-    view_from_url = query_params.get("view", [None])[0]
+    # Use st.query_params instead of the deprecated st.experimental_get_query_params
+    query_params = st.query_params
+    investigation_from_url = query_params.get("investigation", None)
+    view_from_url = query_params.get("view", None)
     
     print(f"DEBUG [app.py]: Starting with URL parameters: investigation={investigation_from_url}, view={view_from_url}")
     
