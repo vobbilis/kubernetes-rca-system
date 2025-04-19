@@ -138,6 +138,10 @@ class K8sClient:
         if not self.connected:
             return []
         
+        # Use mock client if enabled
+        if self.use_mock:
+            return self.mock_client.pods.get(namespace, [])
+        
         try:
             pods = self.core_v1.list_namespaced_pod(namespace)
             return [self._convert_k8s_obj_to_dict(pod) for pod in pods.items]
@@ -200,6 +204,10 @@ class K8sClient:
         if not self.connected:
             return []
         
+        # Use mock client if enabled
+        if self.use_mock:
+            return self.mock_client.services.get(namespace, [])
+        
         try:
             services = self.core_v1.list_namespaced_service(namespace)
             return [self._convert_k8s_obj_to_dict(svc) for svc in services.items]
@@ -219,6 +227,10 @@ class K8sClient:
         """
         if not self.connected:
             return []
+        
+        # Use mock client if enabled
+        if self.use_mock:
+            return self.mock_client.deployments.get(namespace, [])
         
         try:
             deployments = self.apps_v1.list_namespaced_deployment(namespace)
@@ -389,6 +401,38 @@ class K8sClient:
         """
         if not self.connected:
             return []
+        
+        # Use mock client if enabled
+        if self.use_mock:
+            # Implement simple mock events data
+            mock_events = [
+                {
+                    "type": "Warning",
+                    "reason": "BackOff",
+                    "message": "Back-off restarting failed container database in pod database-7c9f8b6d5e-3x5qp",
+                    "involvedObject": {
+                        "kind": "Pod",
+                        "name": "database-7c9f8b6d5e-3x5qp",
+                        "namespace": namespace
+                    },
+                    "lastTimestamp": "2025-04-19T10:00:00Z",
+                    "count": 5
+                },
+                {
+                    "type": "Warning",
+                    "reason": "Failed",
+                    "message": "Error: ImagePullBackOff",
+                    "involvedObject": {
+                        "kind": "Pod",
+                        "name": "api-gateway-6b7c8d9e5f-4q3zx",
+                        "namespace": namespace
+                    },
+                    "lastTimestamp": "2025-04-19T10:05:00Z",
+                    "count": 3
+                }
+            ]
+            
+            return mock_events if namespace == "test-microservices" else []
         
         try:
             # Default field selector to show only non-normal events if none provided
