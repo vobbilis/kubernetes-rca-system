@@ -1,0 +1,56 @@
+{
+  "id": "fa0bbe77-3784-434b-a88c-c8b097395e47",
+  "title": "New Investigation (2025-04-19 23:21)",
+  "namespace": "default",
+  "context": "",
+  "created_at": "20250419_232106",
+  "updated_at": "20250419_232106",
+  "summary": "",
+  "status": "in_progress",
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Investigation started at 2025-04-19 23:21:06",
+      "timestamp": "20250419_232106"
+    }
+  ],
+  "evidence": {},
+  "agent_findings": {},
+  "next_actions": [
+    {
+      "text": "Check the health of my cluster",
+      "action": {
+        "type": "query",
+        "query": "Check the overall health of my Kubernetes cluster and show me any issues"
+      }
+    },
+    {
+      "text": "What services are running in my cluster?",
+      "action": {
+        "type": "query",
+        "query": "List all services running in my Kubernetes cluster and their status"
+      }
+    },
+    {
+      "text": "Are any of my applications slow?",
+      "action": {
+        "type": "query",
+        "query": "Identify any applications or services that have performance issues or high latency"
+      }
+    },
+    {
+      "text": "Show failed pods",
+      "action": {
+        "type": "query",
+        "query": "List all failed or problematic pods and explain why they're failing"
+      }
+    },
+    {
+      "text": "Analyze resource usage",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "resources"
+      }
+    }
+  ]
+}
