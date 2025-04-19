@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Optional
 import json
 import uuid
-from utils.llm_client import LLMClient
+from utils.llm_client_improved import LLMClient
 
 class MCPAgent:
     """
@@ -118,22 +118,31 @@ Follow these steps in your analysis:
 Think step-by-step and be thorough in your analysis.
 """
     
-    def execute_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
+    def execute_tool(self, tool_name: str, arguments: Dict[str, Any], context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Execute a tool based on its name and arguments.
         
         Args:
             tool_name: Name of the tool to execute
             arguments: Arguments to pass to the tool
+            context: Additional context for the tool execution (optional)
             
         Returns:
             Result of the tool execution
         """
         # Set up the LLM client to use our tool execution method
-        self.llm_client.execute_tool = self._execute_tool_internal
+        # We'll adapt to the new interface with the context parameter
         
         # Execute the tool
-        return self._execute_tool_internal(tool_name, arguments)
+        result = self._execute_tool_internal(tool_name, arguments)
+        
+        # Format result as expected by the improved interface
+        return {
+            "result": result,
+            "execution_status": "success",
+            "tool_name": tool_name,
+            "arguments": arguments
+        }
     
     def _execute_tool_internal(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
         """

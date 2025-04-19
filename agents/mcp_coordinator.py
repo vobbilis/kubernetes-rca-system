@@ -10,7 +10,7 @@ from agents.mcp_events_agent import MCPEventsAgent
 from agents.mcp_topology_agent import MCPTopologyAgent
 from agents.mcp_traces_agent import MCPTracesAgent
 from agents.resource_analyzer import ResourceAnalyzer
-from utils.llm_client import LLMClient
+from utils.llm_client_improved import LLMClient
 
 class MCPCoordinator:
     """
