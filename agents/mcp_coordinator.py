@@ -1020,9 +1020,12 @@ Return your response in JSON format with these fields:
 - summary: A brief 1-2 sentence summary of the issues found or situation
 - suggestions: An array of suggestion objects, each with:
   - text: The text to show the user for this suggestion (keep brief but descriptive)
+  - priority: The priority level ("CRITICAL", "HIGH", or "LOW") based on severity
+  - reasoning: A brief explanation of why this action is suggested (1-2 sentences)
   - action: An object with:
     - type: The action type (run_agent, check_resource, check_logs, check_events, query)
     - [additional fields based on type]
+- key_findings: Array of strings identifying the most important insights for future reference
 - response: DEPRECATED - only include this for backwards compatibility, with same content as a simple string
 
 Examples of action objects:
@@ -1101,45 +1104,139 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                     response_json["summary"] = f"All {total_resources} pods running normally in namespace '{namespace}'."
                 
             if "suggestions" not in response_json or not response_json["suggestions"]:
-                # Generate smarter default suggestions based on cluster state
+                # Generate smarter default suggestions based on cluster state with priorities
                 suggestions = []
                 
-                # Always include comprehensive analysis
+                # First, identify the most critical pods by analyzing status and restart counts
+                critical_pods = []
+                high_priority_pods = []
+                low_priority_pods = []
+                
+                if problematic_pods:
+                    # Sort pods by severity using a more sophisticated algorithm
+                    for pod in problematic_pods:
+                        # Calculate a severity score based on multiple factors
+                        restart_count = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                        status = pod.get("status", "Unknown")
+                        
+                        # Assign severity score based on status and restarts
+                        severity_score = 0
+                        
+                        # Status-based scoring
+                        if status == "CrashLoopBackOff":
+                            severity_score += 5
+                        elif status == "Error" or status == "Failed":
+                            severity_score += 4
+                        elif status == "ImagePullBackOff":
+                            severity_score += 3
+                        elif status == "Pending" and restart_count > 0:
+                            severity_score += 2
+                        elif status == "Pending":
+                            severity_score += 1
+                            
+                        # Restart-based scoring
+                        if restart_count > 10:
+                            severity_score += 5
+                        elif restart_count > 5:
+                            severity_score += 3
+                        elif restart_count > 0:
+                            severity_score += 1
+                        
+                        # Categorize by severity score
+                        if severity_score >= 5:
+                            critical_pods.append((pod, severity_score))
+                        elif severity_score >= 2:
+                            high_priority_pods.append((pod, severity_score))
+                        else:
+                            low_priority_pods.append((pod, severity_score))
+                
+                # Add comprehensive analysis with appropriate priority
+                if critical_pods:
+                    priority = "CRITICAL"
+                    reasoning = f"A comprehensive analysis is needed to understand the systemic issues affecting {len(critical_pods)} critical pods."
+                elif high_priority_pods:
+                    priority = "HIGH"
+                    reasoning = f"A comprehensive analysis will help identify patterns across {len(high_priority_pods)} problematic pods."
+                else:
+                    priority = "LOW"
+                    reasoning = "A general overview will help establish a baseline for the cluster state."
+                    
                 suggestions.append({
                     "text": "Run a comprehensive analysis",
+                    "priority": priority,
+                    "reasoning": reasoning,
                     "action": {
                         "type": "run_agent",
                         "agent_type": "comprehensive"
                     }
                 })
                 
-                # If there are problematic pods, suggest checking them specifically
-                if problematic_pods:
-                    for pod in problematic_pods[:2]:  # Limit to first 2 pods to avoid too many suggestions
+                # Add critical pod suggestions first
+                for pod, score in critical_pods[:2]:  # Limit to first 2 critical pods
+                    pod_name = pod["name"]
+                    restart_count = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                    
+                    # Check pod details with CRITICAL priority
+                    suggestions.append({
+                        "text": f"Check pod {pod_name}",
+                        "priority": "CRITICAL",
+                        "reasoning": f"This pod is in a critical state with {restart_count} restarts and status {pod.get('status')}. Immediate investigation is required.",
+                        "action": {
+                            "type": "check_resource",
+                            "resource_type": "Pod",
+                            "resource_name": pod_name
+                        }
+                    })
+                    
+                    # Check logs with CRITICAL priority
+                    suggestions.append({
+                        "text": f"View logs for {pod_name}",
+                        "priority": "CRITICAL",
+                        "reasoning": f"The logs will reveal the specific errors causing the pod to fail after {restart_count} restart attempts.",
+                        "action": {
+                            "type": "check_logs",
+                            "pod_name": pod_name,
+                            "container_name": pod["containers"][0]["name"] if pod["containers"] else None
+                        }
+                    })
+                
+                # Add high priority pod suggestions next
+                if len(suggestions) < 5:  # Ensure we don't add too many suggestions
+                    for pod, score in high_priority_pods[:1]:  # Limit to first high priority pod
                         pod_name = pod["name"]
+                        restart_count = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                        
                         suggestions.append({
                             "text": f"Check pod {pod_name}",
+                            "priority": "HIGH",
+                            "reasoning": f"This pod is showing signs of instability with {restart_count} restarts. Investigating it will provide important insights.",
                             "action": {
                                 "type": "check_resource",
                                 "resource_type": "Pod",
                                 "resource_name": pod_name
                             }
                         })
-                        
-                        # Also suggest checking logs for this pod
-                        suggestions.append({
-                            "text": f"View logs for {pod_name}",
-                            "action": {
-                                "type": "check_logs",
-                                "pod_name": pod_name,
-                                "container_name": pod["containers"][0]["name"] if pod["containers"] else None
-                            }
-                        })
                 
                 # Add events check if there are recent events
                 if recent_events:
+                    # Determine priority based on event types and counts
+                    warning_events = [e for e in recent_events if e.get("type") == "Warning"]
+                    error_events = [e for e in recent_events if "Error" in e.get("reason", "")]
+                    
+                    if error_events:
+                        priority = "CRITICAL"
+                        reasoning = f"There are {len(error_events)} error events that could explain the root cause of pod failures."
+                    elif warning_events:
+                        priority = "HIGH"
+                        reasoning = f"There are {len(warning_events)} warning events that may indicate underlying issues."
+                    else:
+                        priority = "LOW"
+                        reasoning = f"Reviewing the {len(recent_events)} recent events will provide context for the cluster state."
+                        
                     suggestions.append({
                         "text": "Check recent warning events",
+                        "priority": priority,
+                        "reasoning": reasoning,
                         "action": {
                             "type": "check_events",
                             "field_selector": "type!=Normal"
@@ -1150,6 +1247,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                 if len(suggestions) <= 1:
                     suggestions.append({
                         "text": "Check resource health",
+                        "priority": "HIGH",
+                        "reasoning": "A resource health check will identify potential resource constraints or misconfigurations.",
                         "action": {
                             "type": "run_agent",
                             "agent_type": "resources"
@@ -1188,9 +1287,23 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                     # Add restart count if available
                     restart_count = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
                     restart_text = f" ({restart_count} restarts)" if restart_count > 0 else ""
+                    status = pod.get("status", "Unknown")
+                    
+                    # Determine priority based on status and restart count
+                    if status in ["CrashLoopBackOff", "Error", "Failed"] or restart_count > 5:
+                        priority = "CRITICAL"
+                        reasoning = f"This pod is in a critical state with {restart_count} restarts and status {status}. Immediate investigation is required."
+                    elif restart_count > 0 or status in ["ImagePullBackOff", "Pending"]:
+                        priority = "HIGH"
+                        reasoning = f"This pod is showing signs of instability with {restart_count} restarts. Investigating it will provide important insights."
+                    else:
+                        priority = "LOW"
+                        reasoning = f"This pod is in an unusual state ({status}) and should be checked."
                     
                     default_suggestions.append({
                         "text": f"Check pod {pod_name}{restart_text}",
+                        "priority": priority,
+                        "reasoning": reasoning,
                         "action": {
                             "type": "check_resource",
                             "resource_type": "Pod",
@@ -1205,6 +1318,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                     
                     default_suggestions.append({
                         "text": f"View logs for {pod_name}",
+                        "priority": priority,
+                        "reasoning": f"The logs will reveal the specific errors causing the pod to fail after {restart_count} restart attempts.",
                         "action": {
                             "type": "check_logs",
                             "pod_name": pod_name,
@@ -1217,6 +1332,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                 # Add general suggestions
                 default_suggestions.append({
                     "text": "Run a comprehensive analysis",
+                    "priority": "HIGH",
+                    "reasoning": "A complete analysis will provide a holistic view of the cluster's health and identify potential issues.",
                     "action": {
                         "type": "run_agent",
                         "agent_type": "comprehensive"
@@ -1225,6 +1342,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                 
                 default_suggestions.append({
                     "text": "Check resource health",
+                    "priority": "HIGH",
+                    "reasoning": "A resource health check will identify potential resource constraints or misconfigurations.",
                     "action": {
                         "type": "run_agent",
                         "agent_type": "resources"
@@ -1234,6 +1353,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
             # Always add events check as it's generally useful
             default_suggestions.append({
                 "text": "View recent events",
+                "priority": "HIGH",
+                "reasoning": "Kubernetes events provide critical information about recent changes and potential issues in the cluster.",
                 "action": {
                     "type": "check_events",
                     "field_selector": "type!=Normal"
@@ -1265,11 +1386,13 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
             dict: Updated response with new suggestions
         """
         if not previous_suggestions or selected_suggestion_index >= len(previous_suggestions):
-            # Generate default suggestions if previous ones are invalid
+            # Generate default suggestions with priorities and reasoning if previous ones are invalid
             return {
                 "suggestions": [
                     {
                         "text": "Run a comprehensive analysis of your namespace",
+                        "priority": "HIGH",
+                        "reasoning": "A comprehensive analysis will help identify patterns across all resources and signals in your cluster.",
                         "action": {
                             "type": "run_agent",
                             "agent_type": "comprehensive"
@@ -1277,6 +1400,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                     },
                     {
                         "text": "Check for problematic pods",
+                        "priority": "HIGH",
+                        "reasoning": "Problematic pods are often the first indicator of underlying issues. Identifying them will help focus the investigation.",
                         "action": {
                             "type": "run_agent",
                             "agent_type": "resources"
@@ -1284,6 +1409,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                     },
                     {
                         "text": "View recent events",
+                        "priority": "HIGH",
+                        "reasoning": "Recent events provide important context about changes and issues in the cluster that might be related to the problem.",
                         "action": {
                             "type": "check_events",
                             "field_selector": "type!=Normal"
@@ -1297,16 +1424,27 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
         selected_action = selected_suggestion.get("action", {})
         action_type = selected_action.get("type", "unknown")
         
-        # Create a prompt for the LLM to generate new suggestions
+        # Create a prompt for the LLM to generate new suggestions with priorities and reasoning
         prompt = f"""
 Based on the user's selection of the action "{selected_suggestion.get('text', 'unknown action')}" (type: {action_type}), 
 please suggest 3-4 new follow-up actions that would be logical next steps in their Kubernetes troubleshooting workflow.
 
+This is a root cause analysis process where we're trying to find a needle in a haystack. 
+The investigation should get progressively narrower with each step, focusing on the most likely causes
+based on information gathered in previous steps.
+
 Return your suggestions as a JSON array with these fields for each suggestion:
 - text: The text to show the user for this suggestion (be concise but descriptive)
+- priority: The priority level ("CRITICAL", "HIGH", or "LOW") based on severity and relevance
+- reasoning: A brief explanation of why this action is suggested (1-2 sentences)
 - action: An object with:
   - type: The action type (run_agent, check_resource, check_logs, check_events, query)
   - [additional fields based on type]
+
+Rules for prioritization:
+- "CRITICAL": Actions that directly investigate the most severe issues or those most likely to be the root cause
+- "HIGH": Actions that provide important information but might be secondary to the main investigation
+- "LOW": Actions that could be helpful but are less directly related to the most pressing issues
 
 Examples of action objects:
 - For run_agent: {{"type": "run_agent", "agent_type": "logs"}}
@@ -1315,7 +1453,9 @@ Examples of action objects:
 - For check_events: {{"type": "check_events", "field_selector": "involvedObject.name=frontend-pod-123"}}
 - For query: {{"type": "query", "query": "What's causing my pod to crash?"}}
 
-Keep these suggestions relevant to what the user has already selected, but diverse enough to explore different troubleshooting paths.
+IMPORTANT: These suggestions should build on what has been learned so far and narrow down the investigation. 
+Be specific about what information you expect to find with each suggestion and why it's relevant.
+Your goal is to help the user find the root cause with minimal steps.
 """
         
         # Add context based on the selected action type
@@ -1375,11 +1515,13 @@ Keep these suggestions relevant to what the user has already selected, but diver
                 # The LLM returned a dict with a suggestions key
                 return response_json
             else:
-                # Invalid response format, return default suggestions
+                # Invalid response format, return default suggestions with priorities and reasoning
                 return {
                     "suggestions": [
                         {
                             "text": "Run a comprehensive analysis of your namespace",
+                            "priority": "HIGH",
+                            "reasoning": "A comprehensive analysis will help identify patterns across all resources and signals in your cluster.",
                             "action": {
                                 "type": "run_agent",
                                 "agent_type": "comprehensive"
@@ -1387,6 +1529,8 @@ Keep these suggestions relevant to what the user has already selected, but diver
                         },
                         {
                             "text": "Check for problematic pods",
+                            "priority": "HIGH",
+                            "reasoning": "Problematic pods are often the first indicator of underlying issues. Identifying them will help focus the investigation.",
                             "action": {
                                 "type": "run_agent",
                                 "agent_type": "resources"
@@ -1394,6 +1538,8 @@ Keep these suggestions relevant to what the user has already selected, but diver
                         },
                         {
                             "text": "View recent events",
+                            "priority": "HIGH",
+                            "reasoning": "Recent events provide important context about changes and issues in the cluster that might be related to the problem.",
                             "action": {
                                 "type": "check_events",
                                 "field_selector": "type!=Normal"
@@ -1402,11 +1548,13 @@ Keep these suggestions relevant to what the user has already selected, but diver
                     ]
                 }
         except Exception as e:
-            # Return default suggestions in case of error
+            # Return default suggestions with priorities and reasoning in case of error
             return {
                 "suggestions": [
                     {
                         "text": "Run a comprehensive analysis of your namespace",
+                        "priority": "HIGH",
+                        "reasoning": "A comprehensive analysis will help identify patterns across all resources and signals in your cluster.",
                         "action": {
                             "type": "run_agent",
                             "agent_type": "comprehensive"
@@ -1414,6 +1562,8 @@ Keep these suggestions relevant to what the user has already selected, but diver
                     },
                     {
                         "text": "Check for problematic pods",
+                        "priority": "HIGH",
+                        "reasoning": "Problematic pods are often the first indicator of underlying issues. Identifying them will help focus the investigation.",
                         "action": {
                             "type": "run_agent",
                             "agent_type": "resources"
@@ -1421,6 +1571,8 @@ Keep these suggestions relevant to what the user has already selected, but diver
                     },
                     {
                         "text": "View recent events",
+                        "priority": "HIGH",
+                        "reasoning": "Recent events provide important context about changes and issues in the cluster that might be related to the problem.",
                         "action": {
                             "type": "check_events",
                             "field_selector": "type!=Normal"
