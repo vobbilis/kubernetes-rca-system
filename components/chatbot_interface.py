@@ -77,6 +77,51 @@ def load_chat_history(investigation_id: str, db_handler):
     if 'next_actions' in investigation:
         st.session_state.current_suggestions = investigation['next_actions']
 
+def get_initial_suggestions():
+    """
+    Returns a list of initial suggestions to show when a new investigation is started.
+    
+    Returns:
+        List of suggestion objects with text and action keys
+    """
+    return [
+        {
+            "text": "Check the health of my cluster",
+            "action": {
+                "type": "query",
+                "query": "Check the overall health of my Kubernetes cluster and show me any issues"
+            }
+        },
+        {
+            "text": "What services are running in my cluster?",
+            "action": {
+                "type": "query",
+                "query": "List all services running in my Kubernetes cluster and their status"
+            }
+        },
+        {
+            "text": "Are any of my applications slow?",
+            "action": {
+                "type": "query",
+                "query": "Identify any applications or services that have performance issues or high latency"
+            }
+        },
+        {
+            "text": "Show failed pods",
+            "action": {
+                "type": "query",
+                "query": "List all failed or problematic pods and explain why they're failing"
+            }
+        },
+        {
+            "text": "Analyze resource usage",
+            "action": {
+                "type": "run_agent",
+                "agent_type": "resources"
+            }
+        }
+    ]
+
 def render_chatbot_interface(
     coordinator,
     k8s_client,
