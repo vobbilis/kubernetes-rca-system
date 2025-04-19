@@ -244,15 +244,15 @@ def render_chatbot_interface(
     
     # Render the chat output (conversation history) in the top container
     with chat_output_container:
-        # Create a row with the conversation title and info icon with tooltip
-        cols = st.columns([6, 1])
+        # Always display the conversation header
+        st.subheader("Conversation")
         
-        with cols[0]:
-            st.subheader("Conversation")
-        
-        # Only show tooltip if we have an investigation
-        if investigation_id and investigation and isinstance(investigation, dict):
-            with cols[1]:
+        # Only show tooltip if we have a valid investigation in an active investigation view
+        if investigation_id and investigation and isinstance(investigation, dict) and st.session_state.get('view_mode') == 'chat':
+            # Create a small container for the tooltip icon
+            tooltip_col = st.container()
+            with tooltip_col:
+                # Use a single column layout for the tooltip
                 # Prepare tooltip content
                 investigation_source = st.session_state.get('investigation_source', 'unknown')
                 
