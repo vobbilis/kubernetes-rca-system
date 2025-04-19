@@ -27,11 +27,30 @@ if not k8s_client.is_connected():
     st.sidebar.error("❌ Could not connect to your Kubernetes cluster")
     st.sidebar.info("Please check your kubeconfig file and ensure your ngrok tunnel is working")
 
-# Initialize environment
-llm_provider = os.environ.get("LLM_PROVIDER", "openai").lower()
+# Initialize environment - try Anthropic by default since OpenAI quota is exceeded
+llm_provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
 if llm_provider not in ["openai", "anthropic"]:
-    st.warning(f"Unknown LLM provider: {llm_provider}. Defaulting to OpenAI.")
-    llm_provider = "openai"
+    st.warning(f"Unknown LLM provider: {llm_provider}. Defaulting to Anthropic.")
+    llm_provider = "anthropic"
+
+# Check if OpenAI API key has a quota issue - if it's the selected provider
+if llm_provider == "openai":
+    try:
+        from utils.llm_client_improved import LLMClient
+        test_client = LLMClient("openai")
+        # Test with a minimal prompt
+        test_response = test_client.generate_completion("This is a test to check API quota.")
+        if isinstance(test_response, str) and test_response.startswith('{"error":'):
+            import json
+            error_data = json.loads(test_response)
+            if "API Quota Exceeded" in error_data.get("error", ""):
+                st.warning("⚠️ OpenAI API key has exceeded its quota. Switching to Anthropic.")
+                llm_provider = "anthropic"
+                os.environ["LLM_PROVIDER"] = "anthropic"
+    except Exception as e:
+        st.warning(f"⚠️ Error checking OpenAI API status: {str(e)}. Using Anthropic instead.")
+        llm_provider = "anthropic"
+        os.environ["LLM_PROVIDER"] = "anthropic"
 
 # Initialize the MCP coordinator
 coordinator = MCPCoordinator(k8s_client, provider=llm_provider)
