@@ -257,6 +257,13 @@ def render_sidebar(k8s_client):
                         
                         st.success(f"Created new investigation: {investigation_title}")
                         st.session_state['new_investigation_created'] = True
+                        
+                        # Debug information
+                        st.info(f"Debug: Investigation ID set to {investigation_id}")
+                        st.write("Session state keys:", list(st.session_state.keys()))
+                        
+                        # Force rerun to update the UI
+                        st.rerun()
                     else:
                         st.error("Failed to create investigation - missing ID")
                         submitted = False

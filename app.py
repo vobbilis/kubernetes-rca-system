@@ -128,17 +128,41 @@ def main():
         
         return
     
-    # If we have a selected investigation, render the chatbot interface
+    # Check if we have a current investigation in session state
+    current_investigation_id = st.session_state.get('current_investigation_id')
+    
+    # Debugging information
+    with st.sidebar.expander("Debug Information", expanded=False):
+        st.write("Current Investigation ID:", current_investigation_id)
+        st.write("Selected Investigation:", selected_investigation)
+        st.write("Submitted:", submitted)
+        st.write("Session State Keys:", list(st.session_state.keys()))
+    
+    # If we have a selected investigation from sidebar, render that
     if selected_investigation:
+        st.info(f"Viewing investigation: {selected_investigation}")
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
             investigation_id=selected_investigation,
             db_handler=db_handler
         )
+    
+    # If we have a current investigation in session state, render that
+    elif current_investigation_id:
+        st.success(f"Working with current investigation: {current_investigation_id}")
+        render_chatbot_interface(
+            coordinator=coordinator, 
+            k8s_client=k8s_client,
+            investigation_id=current_investigation_id,
+            db_handler=db_handler
+        )
+    
     # If we've submitted a new investigation, create it and render the chatbot
     elif submitted:
-        # Add a check to ensure we have a valid investigation ID before attempting to render chatbot
+        st.info("New investigation submitted - checking process")
+        # This is a fallback - the investigation should be created in the sidebar component
+        # and should set current_investigation_id in session state
         investigation_id = st.session_state.get('current_investigation_id')
         if investigation_id:
             st.success(f"Investigation started! ID: {investigation_id}")
@@ -149,7 +173,8 @@ def main():
                 db_handler=db_handler
             )
         else:
-            st.error("Failed to create investigation. Please try again.")
+            st.error("Failed to create investigation. Please try again. (No ID found)")
+            st.write("Please click New Investigation again and provide a title.")
     # Otherwise, show a welcome message
     else:
         st.title("Kubernetes Root Cause Analysis System")
