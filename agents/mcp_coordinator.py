@@ -575,6 +575,65 @@ Format your response as follows:
                 "raw_findings": all_findings
             }
     
+    def generate_summary_from_query(self, query: str, namespace: str = "default") -> Dict[str, Any]:
+        """
+        Generate an investigation summary based on the user's first query.
+        
+        Args:
+            query: The user's initial question or query
+            namespace: The Kubernetes namespace being analyzed
+            
+        Returns:
+            Dictionary with the generated summary
+        """
+        system_prompt = """You are a Kubernetes Root Cause Analysis Expert.
+Your task is to generate a clear, concise investigation summary based on the user's initial question.
+
+The summary should:
+1. Briefly describe what needs to be investigated based on the user's question
+2. Outline the potential areas to be explored in the investigation
+3. Mention the specific Kubernetes components that might be relevant
+4. Be concise (2-3 sentences) but informative and relevant to the user's question
+"""
+        
+        prompt = f"""## Generate Investigation Summary
+
+Based on the user's initial question about their Kubernetes cluster, generate a concise
+investigation summary that outlines what we're trying to accomplish.
+
+### User's Question
+"{query}"
+
+### Namespace Being Analyzed
+{namespace}
+
+Please provide a clear, concise summary (2-3 sentences) that describes what we're investigating
+based on the user's question. The summary will be displayed at the top of the investigation
+to remind the user what we're trying to accomplish.
+"""
+        
+        try:
+            # Get summary from LLM
+            summary_result = self.llm_client.analyze(
+                context={"problem_description": prompt},
+                tools=[],
+                system_prompt=system_prompt
+            )
+            
+            summary = summary_result.get("final_analysis", "")
+            
+            return {
+                "summary": summary,
+                "reasoning_steps": summary_result.get("reasoning_steps", [])
+            }
+            
+        except Exception as e:
+            # Provide a generic summary in case of an error
+            return {
+                "summary": f"Investigation of issues in namespace '{namespace}' based on: {query}",
+                "error": f"Error generating summary: {str(e)}"
+            }
+    
     def generate_summary(self, analysis_id: str) -> Dict[str, Any]:
         """
         Generate a summary of the analysis results.

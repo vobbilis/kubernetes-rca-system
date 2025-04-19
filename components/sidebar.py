@@ -226,12 +226,8 @@ def render_sidebar(k8s_client):
             help="A title that helps you identify this investigation later"
         )
         
-        # Problem description for the LLM agents
-        problem_description = st.text_area(
-            "Problem Description",
-            placeholder="Describe the issue you're experiencing, e.g., 'High latency in the payment service' or 'Pods are frequently restarting'",
-            help="Providing a description helps the LLM agents focus their analysis on specific areas"
-        )
+        # Note about summary generation from first question
+        st.info("The investigation summary will be automatically generated from your first question to the chatbot.")
         
         # Button to start analysis
         submitted = st.button("Start Investigation", type="primary")
@@ -245,7 +241,7 @@ def render_sidebar(k8s_client):
                 investigation_id = st.session_state['db_handler'].create_investigation(
                     title=investigation_title,
                     namespace=selected_namespace,
-                    context=problem_description
+                    context=""  # Empty context initially, will be generated from first question
                 )
                 st.session_state['current_investigation_id'] = investigation_id
                 
@@ -255,14 +251,6 @@ def render_sidebar(k8s_client):
                     role="system",
                     content=f"Investigation started for namespace {selected_namespace}. Analysis type: {analysis_type}."
                 )
-                
-                # Add user problem description if provided
-                if problem_description:
-                    st.session_state['db_handler'].add_conversation_entry(
-                        investigation_id=investigation_id,
-                        role="user",
-                        content=problem_description
-                    )
     
     # Show current connection info at the bottom of the sidebar
     st.sidebar.markdown("---")
