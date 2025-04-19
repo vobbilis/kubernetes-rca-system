@@ -36,22 +36,110 @@ class K8sClient:
             if os.path.exists(custom_kubeconfig):
                 print(f"Loading Kubernetes configuration from {custom_kubeconfig}")
                 
-                # Configure the client to not verify SSL certificates for the API server
-                # This is necessary for connecting to ngrok endpoints with self-signed certs
-                configuration = client.Configuration()
-                configuration.verify_ssl = False
+                # First, directly parse the kubeconfig file to get the server URL
+                try:
+                    with open(custom_kubeconfig, 'r') as f:
+                        kube_config = yaml.safe_load(f)
+                        server_url = None
+                        
+                        # Extract server URL directly from the kubeconfig file
+                        for cluster in kube_config.get('clusters', []):
+                            if cluster.get('cluster') and 'server' in cluster['cluster']:
+                                server_url = cluster['cluster']['server']
+                                print(f"Found server URL in kubeconfig: {server_url}")
+                                break
+                        
+                        if not server_url:
+                            print("ERROR: No server URL found in kubeconfig!")
+                            return
+                except Exception as yaml_error:
+                    print(f"Error parsing kubeconfig file: {yaml_error}")
+                    return
                 
-                # Load the config and apply settings
-                config.load_kube_config(config_file=custom_kubeconfig, client_configuration=configuration)
+                # Create a configuration with SSL verification disabled
+                api_config = client.Configuration()
+                api_config.host = server_url  # Set the server URL directly
+                api_config.verify_ssl = False
+                api_config.debug = True
                 
-                # Get available contexts
-                k8s_config = config.list_kube_config_contexts()
-                if k8s_config:
-                    self.available_contexts = [context['name'] for context in k8s_config[0]]
-                    self.current_context = k8s_config[1]['name']
-                    self.connected = True
+                # Set defaults for client certificates
+                api_config.cert_file = None
+                api_config.key_file = None
+                api_config.ssl_ca_cert = None
+                
+                # Load user credentials from kubeconfig
+                try:
+                    # Get the current context
+                    current_context = kube_config.get('current-context')
+                    
+                    # Find the user associated with this context
+                    context_info = None
+                    for ctx in kube_config.get('contexts', []):
+                        if ctx.get('name') == current_context:
+                            context_info = ctx
+                            break
+                    
+                    if context_info:
+                        user_name = context_info.get('context', {}).get('user')
+                        
+                        # Find the user credentials
+                        for user in kube_config.get('users', []):
+                            if user.get('name') == user_name and 'user' in user:
+                                user_data = user['user']
+                                
+                                # Check if we have client certificate data
+                                if 'client-certificate-data' in user_data:
+                                    # Save the client cert to a temp file
+                                    cert_data = user_data['client-certificate-data']
+                                    
+                                # Check if we have client key data
+                                if 'client-key-data' in user_data:
+                                    # Save the client key to a temp file
+                                    key_data = user_data['client-key-data']
+                                    
+                                # Use token auth if available
+                                if 'token' in user_data:
+                                    api_config.api_key['authorization'] = f"Bearer {user_data['token']}"
+                                    
+                                break
+                except Exception as auth_error:
+                    print(f"Error setting up authentication: {auth_error}")
+                
+                # Create API client with this configuration
+                api_client = client.ApiClient(api_config)
+                
+                # Store context information
+                if 'current-context' in kube_config:
+                    current_context = kube_config.get('current-context')
+                    self.available_contexts = [current_context]
+                    self.current_context = current_context
                 else:
-                    print("No contexts found in the kubeconfig")
+                    # Default if no current context is set
+                    self.available_contexts = ["default"]
+                    self.current_context = "default"
+                self.connected = True
+                
+                # Initialize API clients
+                self.core_v1 = client.CoreV1Api(api_client)
+                self.apps_v1 = client.AppsV1Api(api_client)
+                self.networking_v1 = client.NetworkingV1Api(api_client)
+                self.custom_objects_api = client.CustomObjectsApi(api_client)
+                
+                # Test the connection
+                try:
+                    print(f"DEBUG: Attempting to connect to Kubernetes API at {api_config.host}")
+                    # Enable detailed HTTP debugging
+                    import http.client as http_client
+                    http_client.HTTPConnection.debuglevel = 1
+                    
+                    # Test the API connection
+                    namespaces = self.core_v1.list_namespace(limit=1)
+                    print(f"Successfully validated Kubernetes API connection. Found namespaces: {[ns.metadata.name for ns in namespaces.items]}")
+                    http_client.HTTPConnection.debuglevel = 0
+                except Exception as api_error:
+                    print(f"Failed to validate Kubernetes API connection: {api_error}")
+                    print(f"DEBUG: API Host was: {api_config.host}")
+                    print(f"DEBUG: SSL Verification was: {api_config.verify_ssl}")
                     self.connected = False
             else:
                 # If custom config doesn't exist, try in-cluster config
@@ -61,70 +149,15 @@ class K8sClient:
                     self.connected = True
                     self.current_context = "in-cluster"
                     self.available_contexts = ["in-cluster"]
-                except config.config_exception.ConfigException:
-                    # If not in a cluster, try to load from default kubeconfig location
-                    print("Not running in a cluster, trying default kubeconfig")
-                    config.load_kube_config()
                     
-                    # Get available contexts
-                    k8s_config = config.list_kube_config_contexts()
-                    if k8s_config:
-                        self.available_contexts = [context['name'] for context in k8s_config[0]]
-                        self.current_context = k8s_config[1]['name']
-                        self.connected = True
-                    else:
-                        print("No contexts found in the default kubeconfig")
-                        self.connected = False
-            
-            if self.connected:
-                # Create Kubernetes API clients with SSL verification disabled
-                print(f"Connected to Kubernetes cluster with context: {self.current_context}")
-                
-                # Create a configuration with SSL verification disabled
-                api_config = client.Configuration.get_default_copy()
-                api_config.verify_ssl = False
-                api_config.debug = True
-                
-                # Extract server URL from the loaded configuration
-                # This ensures we use the correct host from the kubeconfig (ngrok URL)
-                contexts_list, active_context = config.list_kube_config_contexts(config_file=custom_kubeconfig)
-                if active_context:
-                    current_cluster_name = active_context['context']['cluster']
-                    for ctx in contexts_list:
-                        if ctx['name'] == current_cluster_name or ctx['context']['cluster'] == current_cluster_name:
-                            cluster_url = ctx['context'].get('cluster-url') or ctx['cluster']['server']
-                            print(f"Using cluster server URL: {cluster_url}")
-                            # Override the host with the actual server from kubeconfig
-                            api_config.host = cluster_url
-                            break
-                
-                # Direct parse of kubeconfig file as backup
-                if not api_config.host:
-                    with open(custom_kubeconfig, 'r') as f:
-                        kube_config = yaml.safe_load(f)
-                        for cluster in kube_config.get('clusters', []):
-                            server_url = cluster.get('cluster', {}).get('server')
-                            if server_url:
-                                print(f"Using server URL from direct parse: {server_url}")
-                                api_config.host = server_url
-                                break
-                
-                api_client = client.ApiClient(api_config)
-                
-                # Initialize API clients with this configuration
-                self.core_v1 = client.CoreV1Api(api_client)
-                self.apps_v1 = client.AppsV1Api(api_client)
-                self.networking_v1 = client.NetworkingV1Api(api_client)
-                self.custom_objects_api = client.CustomObjectsApi(api_client)
-                
-                # Validate connection by making a test API call
-                try:
-                    self.core_v1.list_namespace(limit=1)
-                    print("Successfully validated Kubernetes API connection")
-                except Exception as api_error:
-                    print(f"Failed to validate Kubernetes API connection: {api_error}")
+                    # Initialize API clients
+                    self.core_v1 = client.CoreV1Api()
+                    self.apps_v1 = client.AppsV1Api()
+                    self.networking_v1 = client.NetworkingV1Api()
+                    self.custom_objects_api = client.CustomObjectsApi()
+                except config.config_exception.ConfigException:
+                    print("Not running in a cluster and no kubeconfig found")
                     self.connected = False
-            
         except Exception as e:
             print(f"Failed to load Kubernetes configuration: {e}")
             self.connected = False
@@ -170,42 +203,50 @@ class K8sClient:
             return False
         
         try:
-            # Configure SSL validation bypass for ngrok endpoints
-            configuration = client.Configuration()
-            configuration.verify_ssl = False
-            
-            # Use the configuration when loading the context
-            config.load_kube_config(context=context_name, client_configuration=configuration)
-            self.current_context = context_name
-            
-            # Create a configuration with SSL verification disabled
-            api_config = client.Configuration.get_default_copy()
-            api_config.verify_ssl = False
-            api_config.debug = True
-            
             # Get the kubeconfig path
             custom_kubeconfig = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
                                          "kube-config", "safe-kubeconfig.yaml")
             
-            # Extract server URL from the loaded configuration
-            # This ensures we use the correct host from the kubeconfig (ngrok URL)
-            clusters, contexts, users = config.list_kube_config_contexts(config_file=custom_kubeconfig)
-            current_ctx = None
-            for ctx in contexts:
-                if ctx['name'] == context_name:
-                    current_ctx = ctx
-                    break
-                    
-            # Direct parse of kubeconfig file to get the server URL
+            if not os.path.exists(custom_kubeconfig):
+                print(f"Kubeconfig file not found: {custom_kubeconfig}")
+                return False
+                
+            # First, directly parse the kubeconfig file to get the server URL
             with open(custom_kubeconfig, 'r') as f:
                 kube_config = yaml.safe_load(f)
+                server_url = None
+                
+                # Extract server URL directly from the kubeconfig file
                 for cluster in kube_config.get('clusters', []):
-                    server_url = cluster.get('cluster', {}).get('server')
-                    if server_url:
-                        print(f"Using server URL from direct parse: {server_url}")
-                        api_config.host = server_url
+                    if cluster.get('cluster') and 'server' in cluster['cluster']:
+                        server_url = cluster['cluster']['server']
+                        print(f"Found server URL in kubeconfig: {server_url}")
                         break
+                
+                if not server_url:
+                    print("ERROR: No server URL found in kubeconfig!")
+                    return False
             
+            # Create a configuration with SSL verification disabled
+            api_config = client.Configuration()
+            api_config.host = server_url  # Set the server URL directly
+            api_config.verify_ssl = False
+            api_config.debug = True
+            
+            # Set defaults for client certificates
+            api_config.cert_file = None
+            api_config.key_file = None
+            api_config.ssl_ca_cert = None
+            
+            # Get the current context
+            if 'current-context' in kube_config:
+                current_context = kube_config.get('current-context')
+                self.current_context = current_context
+            else:
+                # Default to the context name that was requested
+                self.current_context = context_name
+            
+            # Create API client with this configuration
             api_client = client.ApiClient(api_config)
             
             # Reinitialize API clients with SSL verification disabled
@@ -214,7 +255,25 @@ class K8sClient:
             self.networking_v1 = client.NetworkingV1Api(api_client)
             self.custom_objects_api = client.CustomObjectsApi(api_client)
             
-            return True
+            # Test the connection
+            try:
+                print(f"DEBUG: Testing connection to Kubernetes API at {api_config.host}")
+                # Enable detailed HTTP debugging
+                import http.client as http_client
+                http_client.HTTPConnection.debuglevel = 1
+                
+                # Test the API connection
+                namespaces = self.core_v1.list_namespace(limit=1)
+                print(f"Successfully validated Kubernetes API connection. Found namespaces: {[ns.metadata.name for ns in namespaces.items]}")
+                http_client.HTTPConnection.debuglevel = 0
+                self.connected = True
+            except Exception as api_error:
+                print(f"Failed to validate Kubernetes API connection: {api_error}")
+                print(f"DEBUG: API Host was: {api_config.host}")
+                print(f"DEBUG: SSL Verification was: {api_config.verify_ssl}")
+                self.connected = False
+            
+            return self.connected
         except Exception as e:
             print(f"Failed to set context to {context_name}: {e}")
             return False
