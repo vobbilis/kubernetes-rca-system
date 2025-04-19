@@ -4,17 +4,74 @@
   "namespace": "default",
   "context": "",
   "created_at": "20250419_224648",
-  "updated_at": "20250419_224648",
-  "summary": "",
+  "updated_at": "20250419_224702",
+  "summary": "Investigation of 10 problematic pods in namespace 'default'.",
   "status": "in_progress",
   "conversation": [
     {
       "role": "system",
       "content": "Investigation started at 2025-04-19 22:46:48",
       "timestamp": "20250419_224648"
+    },
+    {
+      "role": "user",
+      "content": "How is my cluster doing?",
+      "timestamp": "20250419_224701"
+    },
+    {
+      "role": "assistant",
+      "content": "Based on my analysis of your Kubernetes cluster, I've detected 10 problematic pods including configmap-error, failing-job-2jdjm, failing-job-4ndjw, and 7 more. There are also 5 recent warning/error events that may indicate issues. I recommend checking the suggested actions below to investigate further.",
+      "timestamp": "20250419_224702"
     }
   ],
   "evidence": {},
   "agent_findings": {},
-  "next_actions": []
+  "next_actions": [
+    {
+      "text": "Run a comprehensive analysis",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "comprehensive"
+      }
+    },
+    {
+      "text": "Check pod configmap-error",
+      "action": {
+        "type": "check_resource",
+        "resource_type": "Pod",
+        "resource_name": "configmap-error"
+      }
+    },
+    {
+      "text": "View logs for configmap-error",
+      "action": {
+        "type": "check_logs",
+        "pod_name": "configmap-error",
+        "container_name": "config-container"
+      }
+    },
+    {
+      "text": "Check pod failing-job-2jdjm",
+      "action": {
+        "type": "check_resource",
+        "resource_type": "Pod",
+        "resource_name": "failing-job-2jdjm"
+      }
+    },
+    {
+      "text": "View logs for failing-job-2jdjm",
+      "action": {
+        "type": "check_logs",
+        "pod_name": "failing-job-2jdjm",
+        "container_name": "fail-container"
+      }
+    },
+    {
+      "text": "Check recent warning events",
+      "action": {
+        "type": "check_events",
+        "field_selector": "type!=Normal"
+      }
+    }
+  ]
 }

@@ -218,6 +218,7 @@ def render_chatbot_interface(
     .chat-message-section {
         height: 350px;
         overflow-y: auto;
+        background-color: #fcfdff;
     }
     
     /* Suggestions section */
@@ -230,6 +231,11 @@ def render_chatbot_interface(
     /* Input section */
     .chat-input-section {
         background-color: #f9f9f9;
+    }
+    
+    /* Fix for Streamlit containers inside our sections */
+    div.chat-section > div {
+        width: 100%;
     }
     
     /* Section headers */
@@ -371,19 +377,18 @@ def render_chatbot_interface(
         # Create a scrollable container for the chat messages directly within the chat messages area
         chat_container = st.container()
         
-        # Add custom CSS for message styling
+        # Add custom CSS for message styling - without container borders, 
+        # as we're now using the section borders
         st.markdown("""
         <style>
         .chat-container {
             display: flex;
             flex-direction: column;
             gap: 20px;
-            padding: 15px;
+            padding: 5px;
             max-height: 600px;
             overflow-y: auto;
-            border: 1px solid #f0f0f0;
-            border-radius: 8px;
-            background-color: #fafafa;
+            background-color: transparent;
         }
         
         .message-user {
@@ -654,8 +659,7 @@ def render_chatbot_interface(
     # Render suggested actions in the middle container
     with suggestions_container:
         if st.session_state.current_suggestions:
-            st.markdown("---")  # Visual divider between chat and suggestions
-            st.subheader("Suggested Next Actions")
+            # No need for divider or subheader as they're built into the box structure now
             
             # Calculate number of columns based on the number of suggestions
             num_suggestions = len(st.session_state.current_suggestions)
