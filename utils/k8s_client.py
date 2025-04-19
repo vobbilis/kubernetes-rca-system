@@ -516,6 +516,43 @@ class K8sClient:
         """
         return datetime.now().isoformat()
     
+    def are_traces_available(self):
+        """
+        Check if distributed tracing is available in the cluster.
+        
+        Returns:
+            bool: True if tracing is available, False otherwise
+        """
+        # Check for common tracing backends like Jaeger, Zipkin, or OpenTelemetry Collector
+        if not self.connected:
+            return False
+            
+        try:
+            # Look for tracing services in the cluster
+            all_namespaces = self.get_namespaces()
+            for namespace in all_namespaces:
+                services = self.get_services(namespace)
+                
+                for service in services:
+                    name = service['metadata']['name'].lower()
+                    # Check for common tracing service names
+                    if any(tracer in name for tracer in ['jaeger', 'zipkin', 'opentelemetry', 'tempo', 'trace']):
+                        return True
+                        
+            # If no tracing services found, check for tracing custom resources
+            try:
+                # Check for OpenTelemetry resources
+                otel_resources = self._run_kubectl_command(["get", "opentelemetrycollector", "--all-namespaces"])
+                if otel_resources['success'] and len(otel_resources['output'].strip()) > 0:
+                    return True
+            except Exception:
+                pass
+                
+            return False
+        except Exception as e:
+            print(f"Error checking for traces availability: {e}")
+            return False
+    
     def _run_kubectl_command(self, args):
         """
         Run a kubectl command and return the result.
