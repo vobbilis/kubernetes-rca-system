@@ -880,13 +880,18 @@ IMPORTANT FORMAT REQUIREMENTS:
 - Focus on actionable information
 
 Return your response in JSON format with these fields:
-- response: Your SHORT, BULLETED answer to the user's query, highlighting identified issues
+- response_data: An object containing structured response data with:
+  - points: Array of strings, each representing a bullet point in your answer
+  - sections: An optional array of sections with subsections (use for complex responses):
+    - section_title: The title of the section
+    - bullets: Array of strings representing bullet points in this section
 - summary: A brief 1-2 sentence summary of the issues found or situation
 - suggestions: An array of suggestion objects, each with:
   - text: The text to show the user for this suggestion (keep brief but descriptive)
   - action: An object with:
     - type: The action type (run_agent, check_resource, check_logs, check_events, query)
     - [additional fields based on type]
+- response: DEPRECATED - only include this for backwards compatibility, with same content as a simple string
 
 Examples of action objects:
 - For run_agent: {"type": "run_agent", "agent_type": "logs"}
