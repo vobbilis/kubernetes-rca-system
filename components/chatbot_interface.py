@@ -274,6 +274,11 @@ def render_chatbot_interface(
                     tooltip_msg += f"\nCreated: {investigation['created_at']}"
                 
                 # Use Streamlit's help to create the tooltip
+                # Ensure tooltip_msg is a string
+                if not isinstance(tooltip_msg, str):
+                    tooltip_msg = str(tooltip_msg)
+                    
+                # Now use the help method
                 st.help(tooltip_msg)
         
         # Create a scrollable container for the chat messages
