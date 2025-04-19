@@ -8,7 +8,7 @@ def render_sidebar(k8s_client):
         k8s_client: Instance of the Kubernetes client
         
     Returns:
-        tuple: (selected_context, selected_namespace, analysis_type, submitted)
+        tuple: (selected_context, selected_namespace, analysis_type, submitted, problem_description)
     """
     st.sidebar.title("Analysis Configuration")
     
@@ -16,7 +16,7 @@ def render_sidebar(k8s_client):
     if not k8s_client.is_connected():
         st.sidebar.warning("⚠️ Not connected to Kubernetes")
         st.sidebar.info("Please configure kubectl access to your cluster")
-        return None, None, None, False
+        return None, None, None, False, None
     
     # Kubernetes context selection
     available_contexts = k8s_client.get_available_contexts()
@@ -36,14 +36,14 @@ def render_sidebar(k8s_client):
                 st.sidebar.success(f"Switched to context {selected_context}")
             else:
                 st.sidebar.error(f"Failed to switch to context {selected_context}")
-                return None, None, None, False
+                return None, None, None, False, None
     
     # Namespace selection
     namespaces = k8s_client.get_namespaces()
     
     if not namespaces:
         st.sidebar.warning("No namespaces found or access denied")
-        return selected_context, None, None, False
+        return selected_context, None, None, False, None
     
     # Add "all-namespaces" option for future use
     # namespaces.insert(0, "all-namespaces")
@@ -78,6 +78,13 @@ def render_sidebar(k8s_client):
     # Analysis scope and depth settings
     st.sidebar.subheader("Analysis Settings")
     
+    # Problem description for the LLM agents
+    problem_description = st.sidebar.text_area(
+        "Problem Description (optional)",
+        placeholder="Describe the issue you're experiencing, e.g., 'High latency in the payment service' or 'Pods are frequently restarting'",
+        help="Providing a description helps the LLM agents focus their analysis on specific areas"
+    )
+    
     # If needed, add settings to control analysis depth
     # analysis_depth = st.sidebar.slider("Analysis Depth", min_value=1, max_value=5, value=3, 
     #                                  help="Higher values mean more thorough analysis but take longer")
@@ -102,4 +109,4 @@ def render_sidebar(k8s_client):
     st.sidebar.text(f"Context: {selected_context}")
     st.sidebar.text(f"Namespace: {selected_namespace}")
     
-    return selected_context, selected_namespace, analysis_type, submitted
+    return selected_context, selected_namespace, analysis_type, submitted, problem_description
