@@ -295,26 +295,43 @@ def render_chatbot_interface(
     
     # Create our main page container
     st.subheader("Conversation")
+
+    # Use a completely native Streamlit approach with expanders that look like sections
     
-    # Use a completely different approach - use actual Streamlit components with styling
-    
-    # MESSAGES SECTION
-    st.markdown('<div class="chat-section chat-message-section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header">Messages</div>', unsafe_allow_html=True)
-    chat_output_container = st.container()
-    st.markdown('</div>', unsafe_allow_html=True)
+    # MESSAGES SECTION - Using an expanded expander with custom styling
+    with st.expander("Messages", expanded=True):
+        # Add custom styling to make it look nicer
+        st.markdown("""
+        <style>
+        /* Style for the messages expander */
+        div[data-testid="stExpander"] {
+            border: 2px solid #3f51b5;
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #fcfdff;
+        }
+        
+        /* Style for the expander header */
+        div[data-testid="stExpander"] > div:first-child {
+            background-color: #eef2ff;
+            border-bottom: 1px solid #ddd;
+            padding: 5px;
+            font-weight: bold;
+            color: #3f51b5;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        chat_output_container = st.container()
     
     # SUGGESTIONS SECTION
-    st.markdown('<div class="chat-section chat-suggestion-section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header">Suggested Next Actions</div>', unsafe_allow_html=True)
-    suggestions_container = st.container()
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.expander("Suggested Next Actions", expanded=True):
+        suggestions_container = st.container()
     
     # INPUT SECTION
-    st.markdown('<div class="chat-section chat-input-section">', unsafe_allow_html=True)
-    st.markdown('<div class="section-header">Your Message</div>', unsafe_allow_html=True)
-    chat_input_container = st.container()
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.expander("Your Message", expanded=True):
+        chat_input_container = st.container()
     
     # Create the chat input area in the input container
     with chat_input_container:
