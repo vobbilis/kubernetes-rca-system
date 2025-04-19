@@ -1077,6 +1077,19 @@ Output your response as a JSON object with the following structure:
                     component, finding, hypothesis, result["evidence"]
                 )
                 
+                # Log the evidence collected in this step
+                try:
+                    log_path = self.evidence_logger.log_investigation_step(
+                        component=component,
+                        hypothesis=hypothesis,
+                        step=step,
+                        result=result
+                    )
+                    result["evidence_log"] = log_path
+                    logger.info(f"Logged investigation step evidence to {log_path}")
+                except Exception as e:
+                    logger.error(f"Failed to log investigation step evidence: {e}")
+                
                 # Add the analysis to the result
                 result.update(evidence_analysis)
                 
@@ -1087,6 +1100,19 @@ Output your response as a JSON object with the following structure:
                 evidence_analysis = self._analyze_investigation_evidence(
                     component, finding, hypothesis, {}  # Empty evidence for now
                 )
+                
+                # Log the analysis step
+                try:
+                    log_path = self.evidence_logger.log_investigation_step(
+                        component=component,
+                        hypothesis=hypothesis,
+                        step=step,
+                        result=result
+                    )
+                    result["evidence_log"] = log_path
+                    logger.info(f"Logged analysis step to {log_path}")
+                except Exception as e:
+                    logger.error(f"Failed to log analysis step: {e}")
                 
                 # Add the analysis to the result
                 result.update(evidence_analysis)
@@ -1109,6 +1135,19 @@ Output your response as a JSON object with the following structure:
                 evidence_analysis = self._analyze_investigation_evidence(
                     component, finding, hypothesis, result["evidence"]
                 )
+                
+                # Log the correlation step
+                try:
+                    log_path = self.evidence_logger.log_investigation_step(
+                        component=component,
+                        hypothesis=hypothesis,
+                        step=step,
+                        result=result
+                    )
+                    result["evidence_log"] = log_path
+                    logger.info(f"Logged correlation step to {log_path}")
+                except Exception as e:
+                    logger.error(f"Failed to log correlation step: {e}")
                 
                 # Add the analysis to the result
                 result.update(evidence_analysis)

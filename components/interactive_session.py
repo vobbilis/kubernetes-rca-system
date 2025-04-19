@@ -405,13 +405,36 @@ def _render_investigation(coordinator):
             })
             
             # Store the conclusion
-            add_to_history('conclusion', {
+            conclusion_data = {
                 'component': component,
                 'finding': finding,
                 'hypothesis': hypothesis,
                 'conclusion': conclusion,
                 'confirmed': True
-            })
+            }
+            
+            # Log the conclusion with evidence
+            try:
+                if 'coordinator' in locals() and hasattr(coordinator, 'evidence_logger'):
+                    # Find all evidence files related to this hypothesis
+                    evidence_files = []
+                    if hasattr(coordinator, 'evidence_logger'):
+                        evidence_files = [e.get('evidence_log', '') for e in 
+                                         coordinator.evidence_logger.get_evidence_for_hypothesis(
+                                             component, hypothesis.get('description', ''))]
+                        
+                    # Log the conclusion
+                    log_path = coordinator.evidence_logger.log_conclusion(
+                        component=component,
+                        hypothesis=hypothesis,
+                        conclusion=conclusion,
+                        evidence_paths=evidence_files
+                    )
+                    conclusion_data['evidence_log'] = log_path
+            except Exception as e:
+                st.error(f"Error logging conclusion: {str(e)}")
+            
+            add_to_history('conclusion', conclusion_data)
             
             st.rerun()
     
