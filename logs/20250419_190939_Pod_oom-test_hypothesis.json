@@ -1,0 +1,32 @@
+{
+  "timestamp": "20250419_190939",
+  "component": "Pod/oom-test",
+  "finding": {
+    "component": "Pod/oom-test",
+    "issue": "Event BackOff: Back-off restarting failed container oom-test in p...",
+    "severity": "critical",
+    "evidence": "Event: BackOff\nMessage: Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38)"
+  },
+  "hypothesis": {
+    "description": "Image pull or container creation failure",
+    "confidence": 0.3,
+    "investigation_steps": [
+      "Check image pull policy and registry accessibility",
+      "Verify image tag exists and is correct",
+      "Review kubelet logs for container creation errors",
+      "Check node storage capacity for new container creation"
+    ],
+    "related_components": [
+      "Container Registry",
+      "Kubelet",
+      "Node Storage",
+      "Container Runtime"
+    ]
+  },
+  "evidence": {
+    "pod_details_error": "'K8sClient' object has no attribute 'get_pod'",
+    "pod_logs": "stress: info: [1] dispatching hogs: 0 cpu, 0 io, 1 vm, 0 hdd\n",
+    "pod_events_error": "K8sClient.get_events() got an unexpected keyword argument 'field_selector'",
+    "cluster_info_error": "'K8sClient' object has no attribute 'get_nodes'"
+  }
+}
