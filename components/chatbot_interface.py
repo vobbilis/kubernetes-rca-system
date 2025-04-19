@@ -296,40 +296,25 @@ def render_chatbot_interface(
     # Create our main page container
     st.subheader("Conversation")
     
-    # Create styled sections all at once before adding content
-    st.markdown("""
-    <div class="chat-outer-container">
-        <!-- Messages Section -->
-        <div class="chat-section chat-message-section">
-            <div class="section-header">Messages</div>
-            <div id="messages-content-area"></div>
-        </div>
-        
-        <!-- Suggestions Section -->
-        <div class="chat-section chat-suggestion-section">
-            <div class="section-header">Suggested Next Actions</div>
-            <div id="suggestions-content-area"></div>
-        </div>
-        
-        <!-- Input Section -->
-        <div class="chat-section chat-input-section">
-            <div class="section-header">Your Message</div>
-            <div id="input-content-area"></div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Use a completely different approach - use actual Streamlit components with styling
     
-    # Now create the required Streamlit containers for functionality
-    # We'll use them with session state so they work properly with the HTML structure
+    # MESSAGES SECTION
+    st.markdown('<div class="chat-section chat-message-section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Messages</div>', unsafe_allow_html=True)
+    chat_output_container = st.container()
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # For message display
-    chat_output_container = st.empty()
+    # SUGGESTIONS SECTION
+    st.markdown('<div class="chat-section chat-suggestion-section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Suggested Next Actions</div>', unsafe_allow_html=True)
+    suggestions_container = st.container()
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    # For suggestions display
-    suggestions_container = st.empty()
-    
-    # For input display
-    chat_input_container = st.empty()
+    # INPUT SECTION
+    st.markdown('<div class="chat-section chat-input-section">', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">Your Message</div>', unsafe_allow_html=True)
+    chat_input_container = st.container()
+    st.markdown('</div>', unsafe_allow_html=True)
     
     # Create the chat input area in the input container
     with chat_input_container:
