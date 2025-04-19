@@ -14,15 +14,13 @@ from agents.mcp_coordinator import MCPCoordinator
 from utils.k8s_client import K8sClient
 from utils.mock_k8s_client import MockK8sClient
 
-# Try to initialize the real Kubernetes client
-real_k8s_client = K8sClient()
+# Initialize the Kubernetes client using your live cluster configuration
+k8s_client = K8sClient()
 
-# If it's not connected, use the mock client instead
-if not real_k8s_client.is_connected():
-    st.sidebar.warning("⚠️ Using mock Kubernetes data for testing")
-    k8s_client = MockK8sClient()
-else:
-    k8s_client = real_k8s_client
+# Check connection status
+if not k8s_client.is_connected():
+    st.sidebar.error("❌ Could not connect to your Kubernetes cluster")
+    st.sidebar.info("Please check your kubeconfig file and ensure your ngrok tunnel is working")
 
 # Initialize environment
 llm_provider = os.environ.get("LLM_PROVIDER", "openai").lower()
