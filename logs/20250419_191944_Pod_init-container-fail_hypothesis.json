@@ -1,0 +1,535 @@
+{
+  "timestamp": "20250419_191944",
+  "component": "Pod/init-container-fail",
+  "finding": {
+    "component": "Pod/init-container-fail",
+    "issue": "Event BackOff: Back-off restarting failed container init-fail in ...",
+    "severity": "critical",
+    "evidence": "Event: BackOff\nMessage: Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)"
+  },
+  "hypothesis": {
+    "description": "Image pull or registry authentication issues",
+    "confidence": 0.55,
+    "investigation_steps": [
+      "Verify image name and tag in pod specification",
+      "Check image pull secrets configuration",
+      "Review kubelet logs for image pull errors",
+      "Test manual image pull on node"
+    ],
+    "related_components": [
+      "Container Registry",
+      "ImagePullSecrets",
+      "Kubelet",
+      "Container Runtime"
+    ]
+  },
+  "evidence": {
+    "pod_details": {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"name\":\"init-container-fail\",\"namespace\":\"default\"},\"spec\":{\"containers\":[{\"image\":\"nginx\",\"name\":\"main-container\"}],\"initContainers\":[{\"command\":[\"sh\",\"-c\",\"echo \\\"Init container failing intentionally\\\"; exit 1\"],\"image\":\"busybox\",\"name\":\"init-fail\"}]}}\n"
+        },
+        "creationTimestamp": "2025-04-18T06:42:42+00:00",
+        "managedFields": [
+          {
+            "apiVersion": "v1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:annotations": {
+                  ".": {},
+                  "f:kubectl.kubernetes.io/last-applied-configuration": {}
+                }
+              },
+              "f:spec": {
+                "f:containers": {
+                  "k:{\"name\":\"main-container\"}": {
+                    ".": {},
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:initContainers": {
+                  ".": {},
+                  "k:{\"name\":\"init-fail\"}": {
+                    ".": {},
+                    "f:command": {},
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            },
+            "manager": "kubectl-client-side-apply",
+            "operation": "Update",
+            "time": "2025-04-18T06:42:42+00:00"
+          },
+          {
+            "apiVersion": "v1",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"PodReadyToStartContainers\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:hostIPs": {},
+                "f:initContainerStatuses": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.0.18\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "manager": "kubelet",
+            "operation": "Update",
+            "subresource": "status",
+            "time": "2025-04-19T19:16:55+00:00"
+          }
+        ],
+        "name": "init-container-fail",
+        "namespace": "default",
+        "resourceVersion": "58174",
+        "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+      },
+      "spec": {
+        "containers": [
+          {
+            "image": "nginx",
+            "imagePullPolicy": "Always",
+            "name": "main-container",
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-nf72q",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "initContainers": [
+          {
+            "command": [
+              "sh",
+              "-c",
+              "echo \"Init container failing intentionally\"; exit 1"
+            ],
+            "image": "busybox",
+            "imagePullPolicy": "Always",
+            "name": "init-fail",
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-nf72q",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "nodeName": "kind-control-plane",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-nf72q",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "conditions": [
+          {
+            "lastTransitionTime": "2025-04-18T06:42:50+00:00",
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastTransitionTime": "2025-04-18T06:42:42+00:00",
+            "message": "containers with incomplete status: [init-fail]",
+            "reason": "ContainersNotInitialized",
+            "status": "False",
+            "type": "Initialized"
+          },
+          {
+            "lastTransitionTime": "2025-04-18T06:42:42+00:00",
+            "message": "containers with unready status: [main-container]",
+            "reason": "ContainersNotReady",
+            "status": "False",
+            "type": "Ready"
+          },
+          {
+            "lastTransitionTime": "2025-04-18T06:42:42+00:00",
+            "message": "containers with unready status: [main-container]",
+            "reason": "ContainersNotReady",
+            "status": "False",
+            "type": "ContainersReady"
+          },
+          {
+            "lastTransitionTime": "2025-04-18T06:42:42+00:00",
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "image": "nginx",
+            "imageID": "",
+            "lastState": {},
+            "name": "main-container",
+            "ready": false,
+            "restartCount": 0,
+            "started": false,
+            "state": {
+              "waiting": {
+                "reason": "PodInitializing"
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-nf72q",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.19.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.19.0.2"
+          }
+        ],
+        "initContainerStatuses": [
+          {
+            "containerID": "containerd://667397ebb5a9db90de0f955d87b752e020e18759cf2db2a20c13f82252b2e09b",
+            "image": "docker.io/library/busybox:latest",
+            "imageID": "docker.io/library/busybox@sha256:37f7b378a29ceb4c551b1b5582e27747b855bbfaa73fa11914fe0df028dc581f",
+            "lastState": {
+              "terminated": {
+                "containerID": "containerd://667397ebb5a9db90de0f955d87b752e020e18759cf2db2a20c13f82252b2e09b",
+                "exitCode": 1,
+                "finishedAt": "2025-04-19T19:16:41+00:00",
+                "reason": "Error",
+                "startedAt": "2025-04-19T19:16:41+00:00"
+              }
+            },
+            "name": "init-fail",
+            "ready": false,
+            "restartCount": 151,
+            "started": false,
+            "state": {
+              "waiting": {
+                "message": "back-off 5m0s restarting failed container=init-fail pod=init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)",
+                "reason": "CrashLoopBackOff"
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-nf72q",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "phase": "Pending",
+        "podIP": "10.244.0.18",
+        "podIPs": [
+          {
+            "ip": "10.244.0.18"
+          }
+        ],
+        "qosClass": "BestEffort",
+        "startTime": "2025-04-18T06:42:42+00:00"
+      }
+    },
+    "pod_logs": "",
+    "pod_events": [
+      {
+        "count": 153,
+        "firstTimestamp": "2025-04-18T06:42:43+00:00",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.initContainers{init-fail}",
+          "kind": "Pod",
+          "name": "init-container-fail",
+          "namespace": "default",
+          "resourceVersion": "15087",
+          "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+        },
+        "lastTimestamp": "2025-04-19T19:16:40+00:00",
+        "message": "Pulling image \"busybox\"",
+        "metadata": {
+          "creationTimestamp": "2025-04-18T06:42:43+00:00",
+          "managedFields": [
+            {
+              "apiVersion": "v1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:count": {},
+                "f:firstTimestamp": {},
+                "f:involvedObject": {},
+                "f:lastTimestamp": {},
+                "f:message": {},
+                "f:reason": {},
+                "f:reportingComponent": {},
+                "f:reportingInstance": {},
+                "f:source": {
+                  "f:component": {},
+                  "f:host": {}
+                },
+                "f:type": {}
+              },
+              "manager": "kubelet",
+              "operation": "Update",
+              "time": "2025-04-19T19:16:40+00:00"
+            }
+          ],
+          "name": "init-container-fail.1837569169dbbee4",
+          "namespace": "default",
+          "resourceVersion": "58153",
+          "uid": "c23f8664-ac91-44dd-a77d-5eb3a8a2fa93"
+        },
+        "reason": "Pulling",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "kind-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "kind-control-plane"
+        },
+        "type": "Normal"
+      },
+      {
+        "count": 2339,
+        "firstTimestamp": "2025-04-18T06:42:58+00:00",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.initContainers{init-fail}",
+          "kind": "Pod",
+          "name": "init-container-fail",
+          "namespace": "default",
+          "resourceVersion": "15087",
+          "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+        },
+        "lastTimestamp": "2025-04-19T19:16:28+00:00",
+        "message": "Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)",
+        "metadata": {
+          "creationTimestamp": "2025-04-18T06:42:58+00:00",
+          "managedFields": [
+            {
+              "apiVersion": "v1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:count": {},
+                "f:firstTimestamp": {},
+                "f:involvedObject": {},
+                "f:lastTimestamp": {},
+                "f:message": {},
+                "f:reason": {},
+                "f:reportingComponent": {},
+                "f:reportingInstance": {},
+                "f:source": {
+                  "f:component": {},
+                  "f:host": {}
+                },
+                "f:type": {}
+              },
+              "manager": "kubelet",
+              "operation": "Update",
+              "time": "2025-04-19T19:16:28+00:00"
+            }
+          ],
+          "name": "init-container-fail.18375695002a40dc",
+          "namespace": "default",
+          "resourceVersion": "58134",
+          "uid": "2cd1ebcd-7ac6-4d95-8fce-8a9473989e75"
+        },
+        "reason": "BackOff",
+        "reportingComponent": "kubelet",
+        "reportingInstance": "kind-control-plane",
+        "source": {
+          "component": "kubelet",
+          "host": "kind-control-plane"
+        },
+        "type": "Warning"
+      },
+      {
+        "count": 137,
+        "firstTimestamp": "2025-04-18T07:03:47+00:00",
+        "involvedObject": {
+          "apiVersion": "v1",
+          "fieldPath": "spec.initContainers{init-fail}",
+          "kind": "Pod",
+          "name": "init-container-fail",
+          "namespace": "default",
+          "resourceVersion": "15087",
+          "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+        },
+        "lastTimestamp": "2025-04-19T19:01:15+00:00",
+        "message": "(combined from similar events): Successfully pulled image \"busybox\" in 704ms (704ms including waiting). Image size: 1855985 bytes.",
+        "metadata": {
+          "creationTimestamp": "2025-04-19T19:01:15+00:00",
+          "managedFields": [
+            {
+              "apiVersion": "v1",
+              "fieldsType": "FieldsV1",
+              "fieldsV1": {
+                "f:count": {},
+                "f:firstTimestamp": {},
+                "f:involvedObject": {},
+                "f:lastTimestamp": {},
+                "f:message": {},
+                "f:reason": {},
+                "f:source": {
+                  "f:component": {},
+                  "f:host": {}
+                },
+                "f:type": {}
+              },
+              "manager": "kubelet",
+              "operation": "Update",
+              "time": "2025-04-19T19:01:15+00:00"
+            }
+          ],
+          "name": "init-container-fail.183757b7c1dbfe93",
+          "namespace": "default",
+          "resourceVersion": "56866",
+          "uid": "80e9f40d-56b3-4092-bc5f-a2ef5a2e9fe5"
+        },
+        "reason": "Pulled",
+        "reportingComponent": "",
+        "reportingInstance": "",
+        "source": {
+          "component": "kubelet",
+          "host": "kind-control-plane"
+        },
+        "type": "Normal"
+      }
+    ],
+    "cluster_node_status": {
+      "kind-control-plane": {
+        "ready": true,
+        "lastTransitionTime": "2025-04-18T03:40:37+00:00"
+      }
+    }
+  }
+}

@@ -343,7 +343,9 @@ def _render_hypothesis_generation(coordinator):
                 st.info("No evidence files found for this hypothesis. Evidence will be gathered during investigation.")
             
             # Button to select this hypothesis
-            if st.button(f"Investigate this hypothesis", key=f"hyp_{i}"):
+            # Create a unique key using a combination of component, index, and hypothesis description hash
+            unique_key = f"hyp_{component}_{i}_{hash(hypothesis_desc) % 10000}"
+            if st.button(f"Investigate this hypothesis", key=unique_key):
                 st.session_state.current_hypothesis = hypothesis
                 st.session_state.analysis_stage = 'investigation'
                 
@@ -431,7 +433,8 @@ def _render_investigation(coordinator):
         st.markdown(f"**Confidence:** {confidence*100:.0f}%")
         
         # Option to accept conclusion
-        if st.button("Accept this conclusion"):
+        conclusion_key = f"accept_conclusion_{component}_{hash(conclusion_text) % 10000}"
+        if st.button("Accept this conclusion", key=conclusion_key):
             st.session_state.analysis_stage = 'conclusion'
             
             # Add to diagnostic path
@@ -484,7 +487,9 @@ def _render_investigation(coordinator):
             step_type = step.get('type', 'unknown')
             
             # Button to select this next step
-            if st.button(f"{i}. {step_desc}", key=f"next_{i}"):
+            # Create a unique key combining component name, step, and step description hash
+            next_step_key = f"next_{component}_{i}_{hash(step_desc) % 10000}"
+            if st.button(f"{i}. {step_desc}", key=next_step_key):
                 # Add to diagnostic path
                 st.session_state.diagnostic_path.append({
                     'type': 'investigation_step',
@@ -515,7 +520,8 @@ def _render_investigation(coordinator):
                 st.rerun()
     
     # Option to reject hypothesis and go back
-    if st.button("This hypothesis is incorrect, go back"):
+    reject_key = f"reject_{component}_{hash(hypothesis.get('description', '')) % 10000}"
+    if st.button("This hypothesis is incorrect, go back", key=reject_key):
         # Store the rejected hypothesis info
         rejected_hypothesis = hypothesis.get('description', 'Unknown')
         
@@ -612,12 +618,12 @@ def _render_conclusion(coordinator):
             st.markdown(f"{i}. {recommendation}")
     
     # Option to investigate another component
-    if st.button("Investigate another component"):
+    if st.button("Investigate another component", key=f"investigate_another_{component}"):
         st.session_state.analysis_stage = 'component_selection'
         st.rerun()
     
     # Option to get a full report
-    if st.button("Generate Full Analysis Report"):
+    if st.button("Generate Full Analysis Report", key=f"generate_report_{component}"):
         report = coordinator.generate_root_cause_report(st.session_state.analysis_history)
         
         # Store the report
