@@ -422,9 +422,45 @@ def render_chatbot_interface(
                 context=st.session_state.get('selected_context', None)
             )
             
-            # Add assistant response to history
-            add_message('assistant', response.get('response', "I couldn't generate a response."), 
-                       investigation_id, db_handler)
+            # Format and add assistant response to history
+            # Check if we already have structured data in response_data format
+            if 'response_data' in response and isinstance(response['response_data'], dict):
+                # We have structured data, use it directly
+                import json
+                structured_response = json.dumps(response)
+                add_message('assistant', structured_response, investigation_id, db_handler)
+            else:
+                # We have the old format response - convert it to structured if possible
+                response_text = response.get('response', "I couldn't generate a response.")
+                
+                # Try to convert normal text with bullet points to structured format
+                lines = response_text.strip().split('\n')
+                points = []
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        # Check if the line starts with a bullet marker and extract the content
+                        if line.startswith('- ') or line.startswith('• '):
+                            points.append(line[2:].strip())
+                        else:
+                            points.append(line)
+                
+                # Create structured response data
+                if points:
+                    structured_data = {
+                        "response_data": {
+                            "points": points
+                        },
+                        "response": response_text,  # Keep original for compatibility
+                        "summary": response.get('summary', ""),
+                        "suggestions": response.get('suggestions', [])
+                    }
+                    import json
+                    structured_response = json.dumps(structured_data)
+                    add_message('assistant', structured_response, investigation_id, db_handler)
+                else:
+                    # Just use the regular response if we can't structure it
+                    add_message('assistant', response_text, investigation_id, db_handler)
             
             # Generate suggested next actions
             suggestions = response.get('suggestions', [])
@@ -710,6 +746,85 @@ def render_chatbot_interface(
                         # AI messages on the left
                         cols = st.columns([7, 3])  # Push content to the left
                         with cols[0]:
+                            # Check if content contains JSON structure for response_data
+                            try:
+                                # Try to detect if content is or contains JSON
+                                if '{' in content and ('"response_data"' in content or '"points"' in content):
+                                    # Attempt to extract and parse JSON data
+                                    import json
+                                    import re
+                                    
+                                    # Look for JSON in the content
+                                    # This regex tries to find a valid JSON object in the text
+                                    json_match = re.search(r'(\{.*\})', content, re.DOTALL)
+                                    if json_match:
+                                        json_str = json_match.group(1)
+                                        try:
+                                            resp_data = json.loads(json_str)
+                                            
+                                            # Get the points from the response data
+                                            formatted_html = '<ul style="margin-left: 5px; padding-left: 15px;">'
+                                            
+                                            # Check for formatted response_data structure
+                                            if 'response_data' in resp_data and isinstance(resp_data['response_data'], dict):
+                                                if 'points' in resp_data['response_data'] and resp_data['response_data']['points']:
+                                                    # Simple bullet points
+                                                    for point in resp_data['response_data']['points']:
+                                                        formatted_html += f'<li style="margin-bottom: 5px;">{point}</li>'
+                                                
+                                                # Check for sections
+                                                if 'sections' in resp_data['response_data'] and resp_data['response_data']['sections']:
+                                                    for section in resp_data['response_data']['sections']:
+                                                        # Add section title
+                                                        if 'section_title' in section:
+                                                            formatted_html += f'<li style="font-weight: bold; margin-top: 8px;">{section["section_title"]}</li>'
+                                                        
+                                                        # Add nested bullets
+                                                        if 'bullets' in section and section['bullets']:
+                                                            formatted_html += '<ul style="margin-left: 10px; padding-left: 15px;">'
+                                                            for bullet in section['bullets']:
+                                                                formatted_html += f'<li style="margin-bottom: 2px;">{bullet}</li>'
+                                                            formatted_html += '</ul>'
+                                            # Fallback to simple bullets if no structured data
+                                            elif 'points' in resp_data and isinstance(resp_data['points'], list):
+                                                for point in resp_data['points']:
+                                                    formatted_html += f'<li style="margin-bottom: 5px;">{point}</li>'
+                                            else:
+                                                # No structured data found, use regular content
+                                                formatted_html += f'<li>{content}</li>'
+                                                
+                                            formatted_html += '</ul>'
+                                            
+                                            # Use the formatted HTML for the content
+                                            content_to_display = formatted_html
+                                        except json.JSONDecodeError:
+                                            # If JSON parsing fails, fall back to regular content
+                                            content_to_display = content
+                                    else:
+                                        content_to_display = content
+                                else:
+                                    # No JSON detected, use regular content but convert to bullet points
+                                    # Split content by lines and convert to bullets
+                                    lines = content.strip().split('\n')
+                                    if len(lines) > 1:
+                                        formatted_html = '<ul style="margin-left: 5px; padding-left: 15px;">'
+                                        for line in lines:
+                                            line = line.strip()
+                                            if line:
+                                                # Check if the line starts with a bullet marker
+                                                if line.startswith('- ') or line.startswith('• '):
+                                                    bullet_text = line[2:].strip()
+                                                else:
+                                                    bullet_text = line
+                                                formatted_html += f'<li style="margin-bottom: 5px;">{bullet_text}</li>'
+                                        formatted_html += '</ul>'
+                                        content_to_display = formatted_html
+                                    else:
+                                        content_to_display = content
+                            except Exception as e:
+                                print(f"Error parsing response: {e}")
+                                content_to_display = content
+                            
                             # Use a custom container with CSS for left alignment
                             st.markdown(f"""
                             <div style="display: flex; align-items: flex-start;">
@@ -719,7 +834,7 @@ def render_chatbot_interface(
                                 </div>
                                 <div style="background-color: #F0F7FF; border-radius: 15px 15px 15px 0; 
                                            padding: 10px 15px; max-width: 90%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                    <div style="color: #333;">{content}</div>
+                                    <div style="color: #333;">{content_to_display}</div>
                                     <div style="font-size: 8px; color: #999; text-align: right; margin-top: 3px;">{formatted_time}</div>
                                 </div>
                             </div>
