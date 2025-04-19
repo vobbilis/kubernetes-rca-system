@@ -47,7 +47,7 @@ def main():
         if st.button("Switch Provider"):
             new_provider = "anthropic" if llm_provider == "openai" else "openai"
             os.environ["LLM_PROVIDER"] = new_provider
-            st.experimental_rerun()
+            st.rerun()
     
     # Render the sidebar
     selected_context, selected_namespace, analysis_type, submitted, problem_description = render_sidebar(k8s_client)
@@ -153,7 +153,7 @@ def main():
                 
                 # Start the interactive session with the findings
                 start_interactive_session(findings)
-                st.experimental_rerun()
+                st.rerun()
                 
         # Export functionality
         col1, col2, col3 = st.columns(3)
@@ -171,13 +171,13 @@ def main():
             if st.button("Clear Results"):
                 st.session_state.analysis_complete = False
                 st.session_state.analysis_results = None
-                st.experimental_rerun()
+                st.rerun()
                 
         with col3:
             if st.session_state.get('interactive_mode', False):
                 if st.button("End Interactive Session"):
                     st.session_state.interactive_mode = False
-                    st.experimental_rerun()
+                    st.rerun()
     
     # Render the interactive session if active
     if st.session_state.get('interactive_mode', False):

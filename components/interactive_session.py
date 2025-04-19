@@ -92,12 +92,12 @@ def render_interactive_session(coordinator):
             st.session_state.diagnostic_path = []
             st.session_state.selected_component = None
             st.session_state.current_hypothesis = None
-            st.experimental_rerun()
+            st.rerun()
     
     with col2:
         if st.button("❌ End Interactive Session"):
             end_interactive_session()
-            st.experimental_rerun()
+            st.rerun()
 
 def _render_component_selection(coordinator):
     """
@@ -171,7 +171,7 @@ def _render_component_selection(coordinator):
                         'hypotheses': hypotheses
                     })
                     
-                    st.experimental_rerun()
+                    st.rerun()
                 
                 # Display severity below the button
                 st.markdown(f"<span style='color:{severity_color}'>Severity: {severity.capitalize()}</span>", unsafe_allow_html=True)
@@ -248,7 +248,7 @@ def _render_hypothesis_generation(coordinator):
                     'investigation_plan': investigation_plan
                 })
                 
-                st.experimental_rerun()
+                st.rerun()
 
 def _render_investigation(coordinator):
     """
@@ -329,7 +329,7 @@ def _render_investigation(coordinator):
                 'confirmed': True
             })
             
-            st.experimental_rerun()
+            st.rerun()
     
     # Display next steps
     if next_steps:
@@ -368,7 +368,7 @@ def _render_investigation(coordinator):
                 if next_step_result.get('conclusion'):
                     st.session_state.analysis_stage = 'conclusion'
                     
-                st.experimental_rerun()
+                st.rerun()
     
     # Option to reject hypothesis and go back
     if st.button("This hypothesis is incorrect, go back"):
@@ -380,7 +380,7 @@ def _render_investigation(coordinator):
             'description': f"Rejected hypothesis: {hypothesis.get('description', 'Unknown')}"
         })
         
-        st.experimental_rerun()
+        st.rerun()
 
 def _render_conclusion(coordinator):
     """
@@ -421,7 +421,7 @@ def _render_conclusion(coordinator):
     # Option to investigate another component
     if st.button("Investigate another component"):
         st.session_state.analysis_stage = 'component_selection'
-        st.experimental_rerun()
+        st.rerun()
     
     # Option to get a full report
     if st.button("Generate Full Analysis Report"):
