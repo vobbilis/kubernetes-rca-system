@@ -149,14 +149,87 @@ def render_chatbot_interface(
         else:
             print(f"DEBUG [chatbot_interface.py]: Chat history already loaded, length: {len(st.session_state.chat_history)}")
     
-    # Create a layout with a fixed chat input at the bottom
-    # Use containers for each section to ensure proper layout
-    chat_output_container = st.container()
-    suggestions_container = st.container()
-    st.markdown("---")  # Separator before the fixed chat input
-    chat_input_container = st.container()
+    # Custom CSS for a single unified canvas with sections
+    st.markdown("""
+    <style>
+    .chat-unified-canvas {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        padding: 15px;
+        background-color: #fafafa;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 200px);
+    }
     
-    # Create the chat input area at the bottom which is always visible
+    .chat-header {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .chat-messages-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+        background-color: white;
+        border-radius: 5px;
+        border: 1px solid #eee;
+        margin-bottom: 10px;
+        min-height: 300px;
+        max-height: calc(100vh - 400px);
+    }
+    
+    .chat-suggestions-area {
+        padding: 10px;
+        background-color: #f5f5f5;
+        border-radius: 5px;
+        border: 1px solid #eee;
+        margin-bottom: 10px;
+        max-height: 150px;
+        overflow-y: auto;
+    }
+    
+    .chat-input-area {
+        padding: 10px;
+        background-color: white;
+        border-radius: 5px;
+        border: 1px solid #eee;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create a main container for the entire chat interface
+    with st.container():
+        # Start the unified canvas
+        st.markdown('<div class="chat-unified-canvas">', unsafe_allow_html=True)
+        
+        # Header section with conversation title
+        st.markdown('<div class="chat-header">', unsafe_allow_html=True)
+        st.subheader("Conversation")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Message display area with scrollbar
+        st.markdown('<div class="chat-messages-area">', unsafe_allow_html=True)
+        chat_output_container = st.container()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Suggestions area
+        st.markdown('<div class="chat-suggestions-area">', unsafe_allow_html=True)
+        suggestions_container = st.container()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Input area
+        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
+        chat_input_container = st.container()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Close the unified canvas
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Create the chat input area in the input container
     with chat_input_container:
         # User input area at the bottom
         user_input = st.text_input("Ask about your Kubernetes cluster:", 
@@ -244,11 +317,7 @@ def render_chatbot_interface(
     
     # Render the chat output (conversation history) in the top container
     with chat_output_container:
-        # Always display the conversation header
-        st.subheader("Conversation")
-        
-        # Remove the tooltip as it's causing issues
-        # We'll implement a better solution later
+        # No need for a header here, it's already in the canvas header
         
         # Create a scrollable container for the chat messages
         chat_container = st.container()

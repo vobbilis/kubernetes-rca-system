@@ -1,0 +1,20 @@
+{
+  "id": "028f1cba-d687-40ab-b845-30764b0e8dcc",
+  "title": "New Investigation (2025-04-19 22:37)",
+  "namespace": "default",
+  "context": "",
+  "created_at": "20250419_223736",
+  "updated_at": "20250419_223736",
+  "summary": "",
+  "status": "in_progress",
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Investigation started at 2025-04-19 22:37:36",
+      "timestamp": "20250419_223736"
+    }
+  ],
+  "evidence": {},
+  "agent_findings": {},
+  "next_actions": []
+}
