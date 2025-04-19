@@ -5,6 +5,7 @@ import json
 import logging
 import networkx as nx
 import os
+import random
 
 from agents.mcp_metrics_agent import MCPMetricsAgent
 from agents.mcp_logs_agent import MCPLogsAgent
@@ -700,6 +701,594 @@ identified root causes, and recommended actions to resolve the issues.
             for analysis_id, analysis in self.analyses.items()
         ]
         
+    def process_user_query(self, query: str, namespace: str, context: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Process a user query in natural language and generate a response with suggested next actions.
+        
+        Args:
+            query: User's natural language query
+            namespace: Kubernetes namespace to analyze
+            context: Kubernetes context (optional)
+            
+        Returns:
+            dict: Response data including text response and suggested actions
+        """
+        # Create a prompt for the LLM to understand the query
+        prompt = f"""
+You are an AI assistant specialized in Kubernetes troubleshooting. 
+The user is asking about their Kubernetes cluster, specifically in the namespace '{namespace}'.
+
+User query: {query}
+
+Based on this query, please:
+1. Provide a helpful response addressing the query
+2. Suggest 3-4 specific next actions the user could take to investigate or resolve their issue
+3. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
+
+Return your response in JSON format with these fields:
+- response: Your answer to the user's query
+- summary: A brief 1-2 sentence summary of the issue or situation
+- suggestions: An array of suggestion objects, each with:
+  - text: The text to show the user for this suggestion
+  - action: An object with:
+    - type: The action type (run_agent, check_resource, check_logs, check_events, query)
+    - [additional fields based on type]
+
+Examples of action objects:
+- For run_agent: {{"type": "run_agent", "agent_type": "logs"}}
+- For check_resource: {{"type": "check_resource", "resource_type": "Pod", "resource_name": "frontend-pod-123"}}
+- For check_logs: {{"type": "check_logs", "pod_name": "frontend-pod-123", "container_name": "main"}}
+- For check_events: {{"type": "check_events", "field_selector": "involvedObject.name=frontend-pod-123"}}
+- For query: {{"type": "query", "query": "What's causing my pod to crash?"}}
+"""
+
+        # Get cluster information for context
+        try:
+            # Get some basic resource information for context
+            pods = self.k8s_client.get_pods(namespace)
+            if pods:
+                pod_info = "\nPods in namespace:\n" + "\n".join([f"- {pod['metadata']['name']}: {pod['status'].get('phase', 'Unknown')}" for pod in pods[:10]])
+                prompt += pod_info
+        except Exception as e:
+            prompt += f"\nNote: Could not retrieve pod information: {e}"
+        
+        # Get the response from the LLM
+        try:
+            response_json = self.llm_client.generate_structured_output(prompt)
+            
+            # Ensure we have the required fields
+            if not isinstance(response_json, dict):
+                response_json = {}
+                
+            if "response" not in response_json:
+                response_json["response"] = "I couldn't understand your query. Could you please be more specific about what you're looking for in your Kubernetes cluster?"
+                
+            if "suggestions" not in response_json:
+                response_json["suggestions"] = [
+                    {
+                        "text": "Run a comprehensive analysis of your namespace",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "comprehensive"
+                        }
+                    },
+                    {
+                        "text": "Check for problematic pods",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "resources"
+                        }
+                    },
+                    {
+                        "text": "View recent events",
+                        "action": {
+                            "type": "check_events",
+                            "field_selector": "type!=Normal"
+                        }
+                    }
+                ]
+            
+            return response_json
+        except Exception as e:
+            # Provide a fallback response
+            return {
+                "response": f"I encountered an error processing your query: {str(e)}. Let me suggest some general actions to help troubleshoot your Kubernetes cluster.",
+                "suggestions": [
+                    {
+                        "text": "Run a comprehensive analysis of your namespace",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "comprehensive"
+                        }
+                    },
+                    {
+                        "text": "Check for problematic pods",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "resources"
+                        }
+                    },
+                    {
+                        "text": "View recent events",
+                        "action": {
+                            "type": "check_events",
+                            "field_selector": "type!=Normal"
+                        }
+                    }
+                ]
+            }
+    
+    def update_suggestions_after_action(self, previous_suggestions: List[Dict[str, Any]], 
+                                        selected_suggestion_index: int,
+                                        namespace: str,
+                                        context: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Update the suggested next actions after a user selects one.
+        
+        Args:
+            previous_suggestions: List of previous suggestions
+            selected_suggestion_index: Index of the suggestion that was selected
+            namespace: Kubernetes namespace being analyzed
+            context: Kubernetes context (optional)
+            
+        Returns:
+            dict: Updated response with new suggestions
+        """
+        if not previous_suggestions or selected_suggestion_index >= len(previous_suggestions):
+            # Generate default suggestions if previous ones are invalid
+            return {
+                "suggestions": [
+                    {
+                        "text": "Run a comprehensive analysis of your namespace",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "comprehensive"
+                        }
+                    },
+                    {
+                        "text": "Check for problematic pods",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "resources"
+                        }
+                    },
+                    {
+                        "text": "View recent events",
+                        "action": {
+                            "type": "check_events",
+                            "field_selector": "type!=Normal"
+                        }
+                    }
+                ]
+            }
+        
+        # Get the selected suggestion
+        selected_suggestion = previous_suggestions[selected_suggestion_index]
+        selected_action = selected_suggestion.get("action", {})
+        action_type = selected_action.get("type", "unknown")
+        
+        # Create a prompt for the LLM to generate new suggestions
+        prompt = f"""
+Based on the user's selection of the action "{selected_suggestion.get('text', 'unknown action')}" (type: {action_type}), 
+please suggest 3-4 new follow-up actions that would be logical next steps in their Kubernetes troubleshooting workflow.
+
+Return your suggestions as a JSON array with these fields for each suggestion:
+- text: The text to show the user for this suggestion (be concise but descriptive)
+- action: An object with:
+  - type: The action type (run_agent, check_resource, check_logs, check_events, query)
+  - [additional fields based on type]
+
+Examples of action objects:
+- For run_agent: {{"type": "run_agent", "agent_type": "logs"}}
+- For check_resource: {{"type": "check_resource", "resource_type": "Pod", "resource_name": "frontend-pod-123"}}
+- For check_logs: {{"type": "check_logs", "pod_name": "frontend-pod-123", "container_name": "main"}}
+- For check_events: {{"type": "check_events", "field_selector": "involvedObject.name=frontend-pod-123"}}
+- For query: {{"type": "query", "query": "What's causing my pod to crash?"}}
+
+Keep these suggestions relevant to what the user has already selected, but diverse enough to explore different troubleshooting paths.
+"""
+        
+        # Add context based on the selected action type
+        if action_type == "run_agent":
+            agent_type = selected_action.get("agent_type", "unknown")
+            prompt += f"\nThe user previously ran an analysis using the {agent_type} agent. Suggest actions that would complement or follow up on this analysis."
+            
+        elif action_type == "check_resource":
+            resource_type = selected_action.get("resource_type", "unknown")
+            resource_name = selected_action.get("resource_name", "unknown")
+            prompt += f"\nThe user previously checked the {resource_type}/{resource_name} resource. Suggest actions that would help investigate related resources or issues."
+            
+        elif action_type == "check_logs":
+            pod_name = selected_action.get("pod_name", "unknown")
+            prompt += f"\nThe user previously checked logs for the pod {pod_name}. Suggest actions that would help understand related issues or components."
+            
+        elif action_type == "check_events":
+            prompt += "\nThe user previously checked Kubernetes events. Suggest actions that would help investigate specific resources mentioned in the events."
+        
+        # Try to get resource information for more context
+        try:
+            # Get pods in the namespace
+            pods = self.k8s_client.get_pods(namespace)
+            if pods:
+                problematic_pods = [pod for pod in pods if pod['status'].get('phase') != 'Running']
+                if problematic_pods:
+                    prompt += "\n\nProblematic pods in the namespace:"
+                    for pod in problematic_pods[:3]:  # Limit to 3 problematic pods for context
+                        pod_name = pod['metadata']['name']
+                        pod_status = pod['status'].get('phase', 'Unknown')
+                        prompt += f"\n- {pod_name}: {pod_status}"
+                        
+                        # Add container statuses if available
+                        container_statuses = pod['status'].get('containerStatuses', [])
+                        for cs in container_statuses:
+                            if not cs.get('ready', False):
+                                reason = "Unknown reason"
+                                if 'state' in cs:
+                                    state_types = cs['state'].keys()
+                                    if 'waiting' in state_types:
+                                        reason = cs['state']['waiting'].get('reason', reason)
+                                    elif 'terminated' in state_types:
+                                        reason = cs['state']['terminated'].get('reason', reason)
+                                prompt += f"\n  - Container {cs.get('name', 'unknown')}: {reason}"
+        except Exception as e:
+            pass  # Ignore errors in getting additional context
+        
+        # Get the response from the LLM
+        try:
+            response_json = self.llm_client.generate_structured_output(prompt)
+            
+            # Ensure we have valid suggestions
+            if isinstance(response_json, list) and len(response_json) > 0:
+                # The LLM returned a direct array of suggestions
+                return {"suggestions": response_json}
+            elif isinstance(response_json, dict) and "suggestions" in response_json:
+                # The LLM returned a dict with a suggestions key
+                return response_json
+            else:
+                # Invalid response format, return default suggestions
+                return {
+                    "suggestions": [
+                        {
+                            "text": "Run a comprehensive analysis of your namespace",
+                            "action": {
+                                "type": "run_agent",
+                                "agent_type": "comprehensive"
+                            }
+                        },
+                        {
+                            "text": "Check for problematic pods",
+                            "action": {
+                                "type": "run_agent",
+                                "agent_type": "resources"
+                            }
+                        },
+                        {
+                            "text": "View recent events",
+                            "action": {
+                                "type": "check_events",
+                                "field_selector": "type!=Normal"
+                            }
+                        }
+                    ]
+                }
+        except Exception as e:
+            # Return default suggestions in case of error
+            return {
+                "suggestions": [
+                    {
+                        "text": "Run a comprehensive analysis of your namespace",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "comprehensive"
+                        }
+                    },
+                    {
+                        "text": "Check for problematic pods",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "resources"
+                        }
+                    },
+                    {
+                        "text": "View recent events",
+                        "action": {
+                            "type": "check_events",
+                            "field_selector": "type!=Normal"
+                        }
+                    }
+                ]
+            }
+    
+    def run_agent_analysis(self, agent_type: str, namespace: str, context: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Run an analysis using a specific agent type.
+        
+        Args:
+            agent_type: Type of agent to run ("metrics", "logs", "events", etc.)
+            namespace: Kubernetes namespace to analyze
+            context: Kubernetes context (optional)
+            
+        Returns:
+            dict: Analysis results
+        """
+        # Create a configuration for the analysis
+        config = {
+            "type": agent_type,
+            "namespace": namespace,
+            "context": context,
+            "parameters": {}
+        }
+        
+        # Initialize a new analysis
+        analysis_id = self.init_analysis(config)
+        
+        try:
+            # Run the appropriate analysis based on agent type
+            if agent_type == "metrics":
+                result = self.run_metrics_analysis(analysis_id)
+            elif agent_type == "logs":
+                result = self.run_logs_analysis(analysis_id)
+            elif agent_type == "events":
+                result = self.run_events_analysis(analysis_id)
+            elif agent_type == "topology":
+                result = self.run_topology_analysis(analysis_id)
+            elif agent_type == "traces":
+                result = self.run_traces_analysis(analysis_id)
+            elif agent_type == "resources":
+                result = self.run_resource_analysis(analysis_id)
+            elif agent_type == "comprehensive":
+                result = self._run_comprehensive_analysis(analysis_id, namespace, context)
+            else:
+                return {"error": f"Unknown agent type: {agent_type}"}
+            
+            # Generate a summary of the analysis
+            summary = self._generate_analysis_summary(agent_type, result)
+            result["summary"] = summary
+            
+            return result
+        except Exception as e:
+            return {
+                "error": str(e),
+                "summary": f"An error occurred while running the {agent_type} analysis: {str(e)}"
+            }
+    
+    def analyze_resource(self, resource_type: str, resource_name: str, resource_details: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze a specific Kubernetes resource.
+        
+        Args:
+            resource_type: Type of resource (Pod, Deployment, Service, etc.)
+            resource_name: Name of the resource
+            resource_details: Resource data
+            
+        Returns:
+            dict: Analysis results with summary
+        """
+        # Create a prompt for the LLM to analyze the resource
+        prompt = f"""
+Analyze the following Kubernetes {resource_type} resource named {resource_name}.
+
+Resource details:
+```yaml
+{json.dumps(resource_details, indent=2)}
+```
+
+Please provide:
+1. A summary of the resource's current state and any issues you identify
+2. Potential causes for any problems detected
+3. Recommended actions to resolve any issues
+
+Return your analysis in JSON format with these fields:
+- summary: A brief summary of the resource's state and any issues
+- issues: An array of identified issues, each with:
+  - description: Description of the issue
+  - severity: (critical, high, medium, low, info)
+- recommendations: An array of recommended actions
+"""
+        
+        # Try to get the analysis from the LLM
+        try:
+            analysis = self.llm_client.generate_structured_output(prompt)
+            
+            # Ensure we have the required fields
+            if not isinstance(analysis, dict):
+                analysis = {}
+                
+            if "summary" not in analysis:
+                analysis["summary"] = f"Analysis of {resource_type}/{resource_name} completed."
+                
+            if "issues" not in analysis:
+                analysis["issues"] = []
+                
+            if "recommendations" not in analysis:
+                analysis["recommendations"] = []
+                
+            return analysis
+        except Exception as e:
+            return {
+                "error": str(e),
+                "summary": f"Failed to analyze {resource_type}/{resource_name}: {str(e)}"
+            }
+    
+    def analyze_logs(self, pod_name: str, container_name: Optional[str], logs: str) -> Dict[str, Any]:
+        """
+        Analyze logs from a pod or container.
+        
+        Args:
+            pod_name: Name of the pod
+            container_name: Name of the container (optional)
+            logs: Log content
+            
+        Returns:
+            dict: Analysis results with summary
+        """
+        # Create a prompt for the LLM to analyze the logs
+        container_info = f" (container: {container_name})" if container_name else ""
+        prompt = f"""
+Analyze the following logs from pod {pod_name}{container_info}.
+
+```
+{logs[:5000]}  # Limit logs to first 5000 characters
+```
+
+Please provide:
+1. A summary of any issues or patterns you identify in the logs
+2. Potential error messages or warnings
+3. Recommended actions to resolve any issues
+
+Return your analysis in JSON format with these fields:
+- summary: A brief summary of the log analysis
+- errors: An array of identified errors, each with:
+  - message: The error message
+  - count: How many times it appears (estimate)
+  - severity: (critical, high, medium, low, info)
+- patterns: Any patterns or trends identified
+- recommendations: An array of recommended actions
+"""
+        
+        # Try to get the analysis from the LLM
+        try:
+            analysis = self.llm_client.generate_structured_output(prompt)
+            
+            # Ensure we have the required fields
+            if not isinstance(analysis, dict):
+                analysis = {}
+                
+            if "summary" not in analysis:
+                analysis["summary"] = f"Analysis of logs from {pod_name}{container_info} completed."
+                
+            if "errors" not in analysis:
+                analysis["errors"] = []
+                
+            if "patterns" not in analysis:
+                analysis["patterns"] = []
+                
+            if "recommendations" not in analysis:
+                analysis["recommendations"] = []
+                
+            return analysis
+        except Exception as e:
+            return {
+                "error": str(e),
+                "summary": f"Failed to analyze logs from {pod_name}{container_info}: {str(e)}"
+            }
+    
+    def analyze_events(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Analyze Kubernetes events.
+        
+        Args:
+            events: List of Kubernetes events
+            
+        Returns:
+            dict: Analysis results with summary
+        """
+        # Create a prompt for the LLM to analyze the events
+        prompt = f"""
+Analyze the following Kubernetes events.
+
+Events:
+```yaml
+{json.dumps(events[:20], indent=2)}  # Limit to first 20 events
+```
+
+Please provide:
+1. A summary of the events and any issues they indicate
+2. Patterns or trends across multiple events
+3. Recommended actions to address any issues
+
+Return your analysis in JSON format with these fields:
+- summary: A brief summary of the events analysis
+- issues: An array of identified issues, each with:
+  - description: Description of the issue
+  - severity: (critical, high, medium, low, info)
+  - affected_resources: Array of affected resources
+- patterns: Any patterns or trends identified
+- recommendations: An array of recommended actions
+"""
+        
+        # Try to get the analysis from the LLM
+        try:
+            analysis = self.llm_client.generate_structured_output(prompt)
+            
+            # Ensure we have the required fields
+            if not isinstance(analysis, dict):
+                analysis = {}
+                
+            if "summary" not in analysis:
+                analysis["summary"] = "Analysis of Kubernetes events completed."
+                
+            if "issues" not in analysis:
+                analysis["issues"] = []
+                
+            if "patterns" not in analysis:
+                analysis["patterns"] = []
+                
+            if "recommendations" not in analysis:
+                analysis["recommendations"] = []
+                
+            return analysis
+        except Exception as e:
+            return {
+                "error": str(e),
+                "summary": f"Failed to analyze Kubernetes events: {str(e)}"
+            }
+    
+    def _generate_analysis_summary(self, agent_type: str, result: Dict[str, Any]) -> str:
+        """
+        Generate a summary of an analysis result.
+        
+        Args:
+            agent_type: Type of agent that performed the analysis
+            result: Analysis results
+            
+        Returns:
+            str: Summary text
+        """
+        # Create a prompt for the LLM to summarize the analysis
+        prompt = f"""
+Summarize the results of a Kubernetes {agent_type} analysis.
+
+Analysis results:
+```json
+{json.dumps(result, indent=2)}
+```
+
+Please provide a concise summary (2-3 sentences) of the key findings and issues identified.
+"""
+        
+        # Try to get the summary from the LLM
+        try:
+            summary = self.llm_client.generate_completion(prompt)
+            return summary
+        except Exception as e:
+            return f"Analysis of {agent_type} completed. {len(result.get('findings', []))} issues found."
+            
+    def get_resource_details(self, resource_type: str, resource_name: str, namespace: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a Kubernetes resource.
+        
+        Args:
+            resource_type: Type of resource (Pod, Deployment, Service, etc.)
+            resource_name: Name of the resource
+            namespace: Namespace of the resource
+            
+        Returns:
+            dict: Resource details
+        """
+        if resource_type.lower() == "pod":
+            return self.k8s_client.get_pod(namespace, resource_name) or {}
+        elif resource_type.lower() == "deployment":
+            # This requires implementation in the K8sClient class
+            # This is a placeholder until implemented
+            return {}
+        elif resource_type.lower() == "service":
+            # This requires implementation in the K8sClient class
+            # This is a placeholder until implemented
+            return {}
+        else:
+            return {}
+    
     def generate_hypotheses(self, component: str, finding: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Generate potential root cause hypotheses for a specific component and finding.
