@@ -131,23 +131,64 @@ def main():
     # Check if we have a current investigation in session state
     current_investigation_id = st.session_state.get('current_investigation_id')
     view_mode = st.session_state.get('view_mode', 'welcome')
+    active_investigation = st.session_state.get('active_investigation')  # Additional backup
+    chat_target_id = st.session_state.get('chat_target_id')  # Another backup
     
-    # Debugging information
-    with st.sidebar.expander("Debug Information", expanded=False):
+    print(f"DEBUG [app.py]: Starting main app with state:")
+    print(f"DEBUG [app.py]: - current_investigation_id: {current_investigation_id}")
+    print(f"DEBUG [app.py]: - selected_investigation: {selected_investigation}")
+    print(f"DEBUG [app.py]: - view_mode: {view_mode}")
+    print(f"DEBUG [app.py]: - active_investigation: {active_investigation}")
+    print(f"DEBUG [app.py]: - chat_target_id: {chat_target_id}")
+    print(f"DEBUG [app.py]: - submitted: {submitted}")
+    print(f"DEBUG [app.py]: - session_state keys: {list(st.session_state.keys())}")
+    
+    # Debugging information - make it expanded by default
+    with st.sidebar.expander("Debug Information", expanded=True):
         st.write("Current Investigation ID:", current_investigation_id)
         st.write("Selected Investigation:", selected_investigation)
         st.write("View Mode:", view_mode)
+        st.write("Active Investigation:", active_investigation)
+        st.write("Chat Target ID:", chat_target_id)
         st.write("Submitted:", submitted)
         st.write("Session State Keys:", list(st.session_state.keys()))
     
-    # If we're in chat view mode with a newly created investigation
+    # Determine which investigation ID to use - try all possible sources in order
+    target_investigation = None
+    source = None
+    
     if view_mode == 'chat' and current_investigation_id:
-        st.success(f"Working with investigation: {current_investigation_id}")
-        print(f"DEBUG: Rendering chatbot interface for investigation {current_investigation_id} (from view_mode)")
+        target_investigation = current_investigation_id
+        source = "view_mode + current_investigation_id"
+    elif active_investigation:
+        target_investigation = active_investigation
+        source = "active_investigation"
+    elif chat_target_id:
+        target_investigation = chat_target_id
+        source = "chat_target_id"
+    elif selected_investigation:
+        target_investigation = selected_investigation
+        source = "selected_investigation"
+    elif current_investigation_id:
+        target_investigation = current_investigation_id
+        source = "current_investigation_id"
+    
+    # If we have determined a target investigation, render the chatbot
+    if target_investigation:
+        print(f"DEBUG [app.py]: Rendering chatbot with investigation {target_investigation} (from {source})")
+        st.success(f"Working with investigation: {target_investigation} (source: {source})")
+        
+        # Make sure all session state variables are consistent
+        st.session_state['current_investigation_id'] = target_investigation
+        st.session_state['selected_investigation'] = target_investigation
+        st.session_state['active_investigation'] = target_investigation
+        st.session_state['chat_target_id'] = target_investigation
+        st.session_state['view_mode'] = 'chat'
+        
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
-            investigation_id=current_investigation_id,
+            investigation_id=target_investigation,
             db_handler=db_handler
         )
     

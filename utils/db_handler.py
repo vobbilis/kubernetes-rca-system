@@ -356,29 +356,63 @@ class DBHandler:
         """
         investigation_id = investigation.get("id")
         if not investigation_id:
-            print(f"ERROR: Cannot save investigation - missing ID")
+            print(f"ERROR [db_handler.py]: Cannot save investigation - missing ID")
             return False
         
         file_path = os.path.join(self.base_dir, f"{investigation_id}.json")
-        print(f"DEBUG: Saving investigation to {file_path}")
+        print(f"DEBUG [db_handler.py]: Saving investigation to {file_path}")
         
         try:
+            # Check permissions on the logs directory
+            if os.path.exists(self.base_dir):
+                # Check if we have write permissions
+                test_permissions = os.access(self.base_dir, os.W_OK)
+                print(f"DEBUG [db_handler.py]: Write permissions for {self.base_dir}: {test_permissions}")
+            
             # Ensure logs directory exists
             if not os.path.exists(self.base_dir):
-                print(f"DEBUG: Creating logs directory {self.base_dir}")
+                print(f"DEBUG [db_handler.py]: Creating logs directory {self.base_dir}")
                 os.makedirs(self.base_dir)
+                
+                # Verify the directory was created
+                if not os.path.exists(self.base_dir):
+                    print(f"ERROR [db_handler.py]: Failed to create directory {self.base_dir}")
+                    return False
             
+            # Write a test file to verify file system is working
+            test_file = os.path.join(self.base_dir, f"test_{time.time()}.tmp")
+            try:
+                with open(test_file, 'w') as tf:
+                    tf.write("test")
+                os.remove(test_file)
+                print(f"DEBUG [db_handler.py]: Successfully wrote and deleted test file")
+            except Exception as te:
+                print(f"ERROR [db_handler.py]: Failed to write test file: {str(te)}")
+                return False
+            
+            # Now save the actual investigation file
             with open(file_path, 'w') as f:
                 json.dump(investigation, f, indent=2)
-            print(f"DEBUG: Successfully wrote investigation file")
+            print(f"DEBUG [db_handler.py]: Successfully wrote investigation file")
             
             # Verify the file was created
             if os.path.exists(file_path):
-                print(f"DEBUG: Verified file exists: {file_path}")
-                return True
+                # Verify file has content
+                file_size = os.path.getsize(file_path)
+                print(f"DEBUG [db_handler.py]: Verified file exists: {file_path}, size: {file_size} bytes")
+                
+                # Try to read it back to make sure it's valid JSON
+                try:
+                    with open(file_path, 'r') as f:
+                        test_read = json.load(f)
+                    print(f"DEBUG [db_handler.py]: Successfully read back the file as valid JSON")
+                    return True
+                except Exception as je:
+                    print(f"ERROR [db_handler.py]: File was created but contains invalid JSON: {str(je)}")
+                    return False
             else:
-                print(f"ERROR: File not found after write: {file_path}")
+                print(f"ERROR [db_handler.py]: File not found after write: {file_path}")
                 return False
         except Exception as e:
-            print(f"ERROR: Failed to save investigation {investigation_id}: {str(e)}")
+            print(f"ERROR [db_handler.py]: Failed to save investigation {investigation_id}: {str(e)}")
             return False

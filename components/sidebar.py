@@ -239,17 +239,25 @@ def render_sidebar(k8s_client):
             else:
                 try:
                     # Create a new investigation
+                    print(f"DEBUG [sidebar.py]: Creating new investigation with title: {investigation_title}, namespace: {selected_namespace}")
                     investigation_id = st.session_state['db_handler'].create_investigation(
                         title=investigation_title,
                         namespace=selected_namespace,
                         context=""  # Empty context initially, will be generated from first question
                     )
                     
+                    print(f"DEBUG [sidebar.py]: Got investigation ID: {investigation_id}")
+                    
                     if investigation_id:
+                        print(f"DEBUG [sidebar.py]: Setting session state variables for investigation {investigation_id}")
+                        # Set both current and selected investigation to ensure it's displayed
                         st.session_state['current_investigation_id'] = investigation_id
                         st.session_state['selected_investigation'] = investigation_id
+                        st.session_state['active_investigation'] = investigation_id  # Extra fallback variable
+                        st.session_state['chat_target_id'] = investigation_id  # Another backup variable
                         
                         # Add initial message
+                        print(f"DEBUG [sidebar.py]: Adding initial system message to investigation {investigation_id}")
                         st.session_state['db_handler'].add_conversation_entry(
                             investigation_id=investigation_id,
                             role="system",
@@ -259,15 +267,27 @@ def render_sidebar(k8s_client):
                         st.success(f"Created new investigation: {investigation_title}")
                         st.session_state['new_investigation_created'] = True
                         
-                        # Debug information, but collapsed by default to keep UI clean
-                        with st.expander("Debug Information", expanded=False):
+                        # Debug information, but expanded to show more details
+                        with st.expander("Debug Information", expanded=True):
                             st.info(f"Investigation ID set to {investigation_id}")
                             st.write("Session state keys:", list(st.session_state.keys()))
+                            st.write("Current investigation:", st.session_state.get('current_investigation_id'))
+                            st.write("Selected investigation:", st.session_state.get('selected_investigation'))
+                            st.write("View mode:", st.session_state.get('view_mode'))
                         
                         # Force immediate refresh of the page
+                        print(f"DEBUG [sidebar.py]: Setting view_mode to 'chat' and rerunning")
                         st.session_state['view_mode'] = 'chat'  # Set mode to chat view
-                        print(f"DEBUG: New investigation created with ID {investigation_id}. Changing view to chat mode.")
-                        print(f"DEBUG: Current session state: {list(st.session_state.keys())}")
+                        print(f"DEBUG [sidebar.py]: Session state before rerun: {list(st.session_state.keys())}")
+                        print(f"DEBUG [sidebar.py]: current_investigation_id = {st.session_state.get('current_investigation_id')}")
+                        print(f"DEBUG [sidebar.py]: selected_investigation = {st.session_state.get('selected_investigation')}")
+                        print(f"DEBUG [sidebar.py]: view_mode = {st.session_state.get('view_mode')}")
+                        
+                        # Reset any cached state that might interfere
+                        if 'chat_history' in st.session_state:
+                            print(f"DEBUG [sidebar.py]: Resetting chat history")
+                            st.session_state['chat_history'] = []
+                            
                         st.rerun()
                     else:
                         st.error("Failed to create investigation - missing ID")

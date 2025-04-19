@@ -92,11 +92,34 @@ def render_chatbot_interface(
         investigation_id: Optional investigation ID for persistence
         db_handler: Optional database handler for persistence
     """
+    print(f"DEBUG [chatbot_interface.py]: Rendering chatbot interface with investigation_id: {investigation_id}")
+    
     st.title("Kubernetes Root Cause Analysis")
     
+    # Add debug info about the investigation
+    if investigation_id:
+        investigation = None
+        if db_handler:
+            investigation = db_handler.get_investigation(investigation_id)
+            print(f"DEBUG [chatbot_interface.py]: Got investigation from db_handler: {investigation is not None}")
+        
+        with st.expander("Chatbot Debug Info", expanded=False):
+            st.write(f"Investigation ID: {investigation_id}")
+            st.write(f"Investigation exists in DB: {investigation is not None}")
+            if investigation:
+                st.write(f"Title: {investigation.get('title')}")
+                st.write(f"Namespace: {investigation.get('namespace')}")
+                st.write(f"Created at: {investigation.get('created_at')}")
+                st.write(f"Status: {investigation.get('status')}")
+                st.write(f"Message count: {len(investigation.get('conversation', []))}")
+    
     # Load chat history if this is a continuing investigation
-    if investigation_id and db_handler and not st.session_state.chat_history:
-        load_chat_history(investigation_id, db_handler)
+    if investigation_id and db_handler:
+        if not st.session_state.chat_history:
+            print(f"DEBUG [chatbot_interface.py]: Loading chat history for investigation {investigation_id}")
+            load_chat_history(investigation_id, db_handler)
+        else:
+            print(f"DEBUG [chatbot_interface.py]: Chat history already loaded, length: {len(st.session_state.chat_history)}")
     
     # Create a layout with a fixed chat input at the bottom
     # Use containers for each section
