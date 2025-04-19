@@ -157,7 +157,9 @@ def _render_component_selection(coordinator):
                 
                 # Create a clickable button for each finding
                 button_label = f"{component}: {issue}"
-                if st.button(button_label, key=f"btn_{component}_{hash(issue)}"):
+                # Create a unique key using the index in the loop along with component and issue
+                unique_index = id(finding)  # Use the memory address as a unique identifier
+                if st.button(button_label, key=f"btn_{component}_{unique_index}"):
                     st.session_state.selected_component = component
                     st.session_state.analysis_stage = 'hypothesis_generation'
                     
