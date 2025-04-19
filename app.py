@@ -137,16 +137,41 @@ def main():
                 
                 # Get findings from results based on analysis type
                 if analysis_type == 'resources':
-                    # Resource analysis findings
-                    for resource_type, resources in analysis_results.get('resources', {}).items():
-                        for resource in resources:
-                            if resource.get('status') != 'Ready' and resource.get('status') != 'Running':
+                    # Extract findings from resource analyzer results
+                    if 'findings' in analysis_results:
+                        # Direct findings from resource analyzer
+                        findings = analysis_results.get('findings', [])
+                    
+                    # If no findings were found, scan the resources for error states directly
+                    if not findings:
+                        for resource_type, resources in analysis_results.get('resources', {}).items():
+                            for resource in resources:
+                                if resource.get('status') != 'Ready' and resource.get('status') != 'Running':
+                                    findings.append({
+                                        'component': f"{resource_type}/{resource.get('name')}",
+                                        'issue': f"Status: {resource.get('status')}",
+                                        'severity': 'critical' if resource.get('status') in ['CrashLoopBackOff', 'Error', 'ImagePullBackOff'] else 'high',
+                                        'evidence': yaml.dump(resource, default_flow_style=False)
+                                    })
+                    
+                    # Add findings from events if present
+                    if 'events' in analysis_results:
+                        for event in analysis_results.get('events', []):
+                            if event.get('type') == 'Warning':
+                                # Parse the event's involved object
+                                obj_kind = event.get('involvedObject', {}).get('kind', 'Resource')
+                                obj_name = event.get('involvedObject', {}).get('name', 'unknown')
+                                reason = event.get('reason', 'Unknown')
+                                message = event.get('message', '')
+                                
+                                # Create a finding from the event
                                 findings.append({
-                                    'component': f"{resource_type}/{resource.get('name')}",
-                                    'issue': f"Status: {resource.get('status')}",
-                                    'severity': 'critical' if resource.get('status') in ['CrashLoopBackOff', 'Error', 'ImagePullBackOff'] else 'high',
-                                    'evidence': yaml.dump(resource, default_flow_style=False)
+                                    'component': f"{obj_kind}/{obj_name}",
+                                    'issue': f"Event {reason}: {message[:50]}...",
+                                    'severity': 'critical' if reason in ['Failed', 'Error', 'CrashLoopBackOff', 'BackOff'] else 'high',
+                                    'evidence': f"Event: {reason}\nMessage: {message}"
                                 })
+                
                 elif 'findings' in analysis_results:
                     # Direct findings from other analysis types
                     findings = analysis_results.get('findings', [])
