@@ -9,6 +9,7 @@ from agents.mcp_logs_agent import MCPLogsAgent
 from agents.mcp_events_agent import MCPEventsAgent
 from agents.mcp_topology_agent import MCPTopologyAgent
 from agents.mcp_traces_agent import MCPTracesAgent
+from agents.resource_analyzer import ResourceAnalyzer
 from utils.llm_client import LLMClient
 
 class MCPCoordinator:
@@ -36,6 +37,9 @@ class MCPCoordinator:
         self.events_agent = MCPEventsAgent(k8s_client, provider)
         self.topology_agent = MCPTopologyAgent(k8s_client, provider)
         self.traces_agent = MCPTracesAgent(k8s_client, provider)
+        
+        # Initialize the resource analyzer
+        self.resource_analyzer = ResourceAnalyzer(k8s_client)
         
         # Store analysis sessions
         self.analyses = {}
@@ -101,6 +105,8 @@ class MCPCoordinator:
                 result = self.run_topology_analysis(analysis_id)
             elif analysis_type == "traces":
                 result = self.run_traces_analysis(analysis_id)
+            elif analysis_type == "resources":
+                result = self.run_resource_analysis(analysis_id)
             else:
                 return {"error": f"Unknown analysis type: {analysis_type}"}
             
@@ -346,6 +352,49 @@ class MCPCoordinator:
         analysis["results"]["traces"] = traces_results
         
         return traces_results
+        
+    def run_resource_analysis(self, analysis_id: str) -> Dict[str, Any]:
+        """
+        Run resource analysis using the resource analyzer.
+        
+        Args:
+            analysis_id: Unique identifier for the analysis
+            
+        Returns:
+            Dictionary with resource analysis results
+        """
+        if analysis_id not in self.analyses:
+            return {"error": "Invalid analysis ID"}
+        
+        analysis = self.analyses[analysis_id]
+        namespace = analysis["config"]["namespace"]
+        
+        # Update analysis status
+        analysis["status"] = "running_resource_analysis"
+        
+        # Run the resource analyzer
+        try:
+            resource_analysis = self.resource_analyzer.analyze_namespace_resources(namespace)
+            
+            # Reset findings and reasoning steps to ensure we get fresh results
+            self.resource_analyzer.findings = []
+            self.resource_analyzer.reasoning_steps = []
+            
+            # Store results
+            analysis["results"]["resources"] = resource_analysis
+            
+            return resource_analysis
+        except Exception as e:
+            error_result = {
+                "error": f"Resource analysis failed: {str(e)}",
+                "findings": [],
+                "reasoning_steps": [{
+                    "observation": "Error during resource analysis",
+                    "conclusion": str(e)
+                }]
+            }
+            analysis["results"]["resources"] = error_result
+            return error_result
     
     def _run_comprehensive_analysis(self, analysis_id: str, namespace: str, context: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """

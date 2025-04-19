@@ -145,6 +145,27 @@ class K8sClient:
             print(f"Failed to get pods in namespace {namespace}: {e}")
             return []
     
+    def get_pod_status(self, namespace, pod_name):
+        """
+        Get detailed status information for a specific pod.
+        
+        Args:
+            namespace: Namespace of the pod
+            pod_name: Name of the pod
+            
+        Returns:
+            dict: Pod status data or None if not found
+        """
+        if not self.connected:
+            return None
+        
+        try:
+            pod = self.core_v1.read_namespaced_pod(name=pod_name, namespace=namespace)
+            return self._convert_k8s_obj_to_dict(pod)
+        except Exception as e:
+            print(f"Failed to get status for pod {pod_name} in namespace {namespace}: {e}")
+            return None
+    
     def get_services(self, namespace):
         """
         Get all services in a namespace.
