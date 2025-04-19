@@ -201,33 +201,76 @@ def render_chatbot_interface(
     </style>
     """, unsafe_allow_html=True)
     
-    # Create a main container for the entire chat interface
-    with st.container():
-        # Start the unified canvas
-        st.markdown('<div class="chat-unified-canvas">', unsafe_allow_html=True)
-        
-        # Header section with conversation title
-        st.markdown('<div class="chat-header">', unsafe_allow_html=True)
+    # Create unified containers for the chat interface
+    main_chat_container = st.container()
+    
+    # Use st.expander to structure the chat UI with clear boundaries
+    with main_chat_container:
+        # Create a header
         st.subheader("Conversation")
-        st.markdown('</div>', unsafe_allow_html=True)
         
-        # Message display area with scrollbar
-        st.markdown('<div class="chat-messages-area">', unsafe_allow_html=True)
-        chat_output_container = st.container()
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Create a container for messages with a border
+        message_area = st.container()
+        with message_area:
+            # Apply custom styling to create a fixed message area with scrollbar
+            st.markdown("""
+            <style>
+            .stContainer {
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                background-color: white;
+                margin-bottom: 15px;
+                height: 350px;
+                overflow-y: auto;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Create container for messages
+            chat_output_container = st.container()
+            
+        # Create a container for suggestions with a border and scroll
+        st.markdown("### Suggested Actions")
+        suggestion_area = st.container()
+        with suggestion_area:
+            # Apply custom styling
+            st.markdown("""
+            <style>
+            .suggestion-area {
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                background-color: #f9f9f9;
+                margin-bottom: 15px;
+                max-height: 150px;
+                overflow-y: auto;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Create container for suggestions
+            suggestions_container = st.container()
         
-        # Suggestions area
-        st.markdown('<div class="chat-suggestions-area">', unsafe_allow_html=True)
-        suggestions_container = st.container()
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Input area
-        st.markdown('<div class="chat-input-area">', unsafe_allow_html=True)
-        chat_input_container = st.container()
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Close the unified canvas
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Create a container for input
+        st.markdown("### Your Message")
+        input_area = st.container()
+        with input_area:
+            # Apply custom styling
+            st.markdown("""
+            <style>
+            .input-area {
+                border: 1px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 10px;
+                background-color: white;
+                margin-bottom: 15px;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # Create container for input
+            chat_input_container = st.container()
     
     # Create the chat input area in the input container
     with chat_input_container:
@@ -319,7 +362,7 @@ def render_chatbot_interface(
     with chat_output_container:
         # No need for a header here, it's already in the canvas header
         
-        # Create a scrollable container for the chat messages
+        # Create a scrollable container for the chat messages directly within the chat messages area
         chat_container = st.container()
         
         # Add custom CSS for message styling
