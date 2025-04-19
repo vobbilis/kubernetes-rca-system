@@ -1042,29 +1042,45 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
             for name, status in pod_statuses.items():
                 prompt += f"- {name}: {status}\n"
         
+        # First, create a structured response using our helper function
+        structured_response = self._format_structured_response(
+            problematic_pods=problematic_pods,
+            pod_statuses=pod_statuses,
+            recent_events=recent_events,
+            namespace=namespace
+        )
+        
         # Get the response from the LLM
         try:
             response_json = self.llm_client.generate_structured_output(prompt)
             
             # Ensure we have the required fields
             if not isinstance(response_json, dict):
-                response_json = {}
+                response_json = structured_response
+            
+            # If LLM didn't generate proper structured data, use our helper's output
+            if "response_data" not in response_json:
+                response_json["response_data"] = structured_response["response_data"]
                 
             if "response" not in response_json or not response_json["response"]:
-                # Generate a more helpful default response based on cluster state
-                default_response = "Based on my analysis of your Kubernetes cluster"
+                # Create default response text from structured data
+                default_response = f"Analysis of Kubernetes cluster in namespace '{namespace}'"
                 if problematic_pods:
-                    pod_names = ", ".join([pod["name"] for pod in problematic_pods[:3]])
-                    if len(problematic_pods) > 3:
-                        pod_names += f", and {len(problematic_pods) - 3} more"
-                    default_response += f", I've detected {len(problematic_pods)} problematic pods including {pod_names}."
+                    # Use the points from our structured response
+                    if structured_response["response_data"]["points"]:
+                        point_text = " ".join(structured_response["response_data"]["points"])
+                        default_response += f". {point_text}"
+                    else:
+                        pod_names = ", ".join([pod["name"] for pod in problematic_pods[:3]])
+                        if len(problematic_pods) > 3:
+                            pod_names += f", and {len(problematic_pods) - 3} more"
+                        default_response += f". Detected {len(problematic_pods)} of {len(pod_statuses)} problematic pods including {pod_names}."
                 else:
-                    default_response += ", all pods appear to be running normally."
+                    default_response += f". All {len(pod_statuses)} pods are running normally."
                 
                 if recent_events:
-                    default_response += f" There are also {len(recent_events)} recent warning/error events that may indicate issues."
+                    default_response += f" There are {len(recent_events)} recent warning/error events that may indicate issues."
                 
-                default_response += " I recommend checking the suggested actions below to investigate further."
                 response_json["response"] = default_response
                 
             if "summary" not in response_json or not response_json["summary"]:
@@ -1224,11 +1240,13 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                 }
             })
             
-            return {
-                "response": f"{response_text}. {str(e)}. Let me suggest some specific actions to help troubleshoot your Kubernetes cluster.",
-                "summary": "Automated analysis of cluster state and potential issues",
-                "suggestions": default_suggestions
-            }
+            # Use our structured response to provide the most accurate data
+            # even in the exception case
+            structured_data = structured_response.copy() 
+            structured_data["suggestions"] = default_suggestions
+            structured_data["response"] = f"{response_text}. {str(e)}. Let me suggest specific actions to help troubleshoot your Kubernetes cluster."
+            
+            return structured_data
     
     def update_suggestions_after_action(self, previous_suggestions: List[Dict[str, Any]], 
                                         selected_suggestion_index: int,
