@@ -2,7 +2,15 @@ import streamlit as st
 import time
 import os
 import json
+import logging
 from typing import Dict, List, Any, Optional
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 def init_interactive_session():
     """Initialize interactive session state variables."""
@@ -23,6 +31,26 @@ def init_interactive_session():
         
     if 'selected_component' not in st.session_state:
         st.session_state.selected_component = None
+        
+    # Ensure logs directory exists
+    try:
+        if not os.path.exists("logs"):
+            os.makedirs("logs")
+            logger.info("Created logs directory")
+            
+        # Test write access
+        test_file = os.path.join("logs", "session_init_test.txt")
+        with open(test_file, "w") as f:
+            f.write("Session initialized")
+        os.remove(test_file)
+        logger.info("Verified write access to logs directory")
+    except Exception as e:
+        logger.error(f"Error setting up logs directory: {str(e)}")
+        st.error(f"Error setting up logs directory: {str(e)}")
+        
+    # Initialize connection recovery features
+    if 'connection_retry_count' not in st.session_state:
+        st.session_state.connection_retry_count = 0
 
 def start_interactive_session(initial_findings: List[Dict]):
     """
@@ -249,19 +277,28 @@ def _render_hypothesis_generation(coordinator):
             with st.expander("View Evidence", expanded=False):
                 # Get any gathered evidence for this hypothesis
                 evidence_files = []
-                for file in os.listdir("logs"):
-                    if file.endswith(".json"):
-                        try:
-                            with open(os.path.join("logs", file), "r") as f:
-                                log_data = json.load(f)
-                                # Check if this is related to our hypothesis
-                                log_component = log_data.get("component")
-                                log_hypothesis = log_data.get("hypothesis", {})
-                                if (log_component == component and 
-                                    log_hypothesis.get("description") == hypothesis_desc):
-                                    evidence_files.append((file, log_data))
-                        except Exception as e:
-                            st.error(f"Error reading log file {file}: {str(e)}")
+                try:
+                    # Safely handle directory listing
+                    if os.path.exists("logs"):
+                        for file in os.listdir("logs"):
+                            if file.endswith(".json"):
+                                try:
+                                    with open(os.path.join("logs", file), "r") as f:
+                                        log_data = json.load(f)
+                                        # Check if this is related to our hypothesis
+                                        log_component = log_data.get("component")
+                                        log_hypothesis = log_data.get("hypothesis", {})
+                                        if (log_component == component and 
+                                            log_hypothesis.get("description") == hypothesis_desc):
+                                            evidence_files.append((file, log_data))
+                                except Exception as e:
+                                    logger.error(f"Error reading log file {file}: {str(e)}")
+                    else:
+                        logger.warning("Logs directory does not exist")
+                        st.info("No evidence logs found. The logs directory does not exist.")
+                except Exception as e:
+                    logger.error(f"Error accessing logs directory: {str(e)}")
+                    st.error(f"Error accessing evidence logs: {str(e)}")
                 
                 if evidence_files:
                     st.markdown("### Evidence for this hypothesis")

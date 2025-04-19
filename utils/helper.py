@@ -9,12 +9,21 @@ def setup_page():
     """
     Set up the page configuration for the Streamlit app.
     """
-    st.set_page_config(
-        page_title="Kubernetes Root Cause Analysis",
-        page_icon="🔍",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    try:
+        st.set_page_config(
+            page_title="Kubernetes Root Cause Analysis",
+            page_icon="🔍",
+            layout="wide",
+            menu_items={
+                'Get Help': 'https://kubernetes.io/docs/tasks/debug/debug-application/',
+                'Report a bug': 'https://github.com/kubernetes/kubernetes/issues',
+                'About': 'AI-Powered Kubernetes Root Cause Analysis Tool'
+            },
+            initial_sidebar_state="expanded"
+        )
+    except Exception as e:
+        # Already set up, ignore the exception
+        pass
 
 def run_kubectl_command(command_args):
     """
