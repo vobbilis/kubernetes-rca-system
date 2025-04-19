@@ -270,6 +270,6 @@ def render_sidebar(k8s_client):
         selected_namespace, 
         analysis_type, 
         submitted, 
-        problem_description, 
+        "",  # Empty string instead of problem_description
         st.session_state.get('current_investigation_id')
     )
