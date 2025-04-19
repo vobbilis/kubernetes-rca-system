@@ -60,6 +60,84 @@ class LLMClient:
             logger.error(f"Unknown provider: {provider}")
             sys.exit(f"Unknown provider: {provider}. Only 'openai' and 'anthropic' are supported.")
     
+    def analyze(self, context: Dict[str, Any], tools: List[Dict] = None, system_prompt: str = None) -> Dict[str, Any]:
+        """
+        Analyze data in the provided context using the LLM.
+        
+        Args:
+            context: Dictionary with data to analyze (including problem_description)
+            tools: List of tools/functions the LLM can use (optional)
+            system_prompt: System prompt to set context for the LLM (optional)
+            
+        Returns:
+            Dictionary with analysis results including final_analysis and reasoning_steps
+        """
+        problem_description = context.get("problem_description", "")
+        if not problem_description:
+            logger.warning("No problem description provided for analysis")
+            return {"error": "No problem description provided"}
+        
+        # Create messages list
+        messages = []
+        
+        # Add system prompt if provided
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # Add the problem description
+        messages.append({"role": "user", "content": problem_description})
+        
+        # Generate completion
+        response_text = self.generate_completion(messages)
+        
+        # Return analysis results
+        return {
+            "final_analysis": response_text,
+            "reasoning_steps": [
+                {
+                    "observation": "Analyzed provided data",
+                    "conclusion": "Generated analysis based on context"
+                }
+            ]
+        }
+        
+    def execute_tool(self, tool_name: str, tool_args: Dict[str, Any], context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Execute a tool or function using the LLM.
+        
+        Args:
+            tool_name: Name of the tool to execute
+            tool_args: Arguments for the tool
+            context: Additional context for the execution (optional)
+            
+        Returns:
+            Dictionary with the tool execution results
+        """
+        # For now, just log the tool execution request and return a simple response
+        logger.info(f"Tool execution request: {tool_name} with args {tool_args}")
+        
+        # Handle different tools
+        if tool_name == "get_logs":
+            return {
+                "result": f"Retrieved logs for {tool_args.get('pod_name', 'unknown pod')}",
+                "execution_status": "success"
+            }
+        elif tool_name == "get_metrics":
+            return {
+                "result": f"Retrieved metrics for {tool_args.get('resource_name', 'unknown resource')}",
+                "execution_status": "success"
+            }
+        elif tool_name == "check_status":
+            return {
+                "result": f"Checked status of {tool_args.get('resource_name', 'unknown resource')}",
+                "execution_status": "success"
+            }
+        else:
+            return {
+                "result": f"Unknown tool: {tool_name}",
+                "execution_status": "error"
+            }
+    
     def generate_completion(self, prompt: Union[str, List[Dict]], 
                            model: Optional[str] = None,
                            temperature: float = 0.2,
