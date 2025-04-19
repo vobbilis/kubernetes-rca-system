@@ -247,39 +247,8 @@ def render_chatbot_interface(
         # Always display the conversation header
         st.subheader("Conversation")
         
-        # Only show tooltip if we have a valid investigation in an active investigation view
-        if investigation_id and investigation and isinstance(investigation, dict) and st.session_state.get('view_mode') == 'chat':
-            # Create a small container for the tooltip icon
-            tooltip_col = st.container()
-            with tooltip_col:
-                # Use a single column layout for the tooltip
-                # Prepare tooltip content
-                investigation_source = st.session_state.get('investigation_source', 'unknown')
-                
-                # Create tooltip message with safe defaults
-                # Truncate ID if it's too long
-                short_id = investigation_id[:8] + "..." if len(investigation_id) > 8 else investigation_id
-                tooltip_msg = f"ID: {short_id}\nSource: {investigation_source}"
-                
-                # Add additional details if available
-                if 'title' in investigation and investigation['title']:
-                    tooltip_msg += f"\nTitle: {investigation['title']}"
-                if 'summary' in investigation and investigation['summary']:
-                    # Truncate summary if too long
-                    summary = str(investigation['summary'])
-                    if len(summary) > 100:
-                        summary = summary[:97] + "..."
-                    tooltip_msg += f"\nDescription: {summary}"
-                if 'created_at' in investigation and investigation['created_at']:
-                    tooltip_msg += f"\nCreated: {investigation['created_at']}"
-                
-                # Use Streamlit's help to create the tooltip
-                # Ensure tooltip_msg is a string
-                if not isinstance(tooltip_msg, str):
-                    tooltip_msg = str(tooltip_msg)
-                    
-                # Now use the help method
-                st.help(tooltip_msg)
+        # Remove the tooltip as it's causing issues
+        # We'll implement a better solution later
         
         # Create a scrollable container for the chat messages
         chat_container = st.container()
