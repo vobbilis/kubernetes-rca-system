@@ -516,6 +516,12 @@ Your task is to correlate findings from different specialized agents to identify
 and determine the most likely root causes. Think carefully about how different symptoms and
 issues might be connected to the same underlying problems.
 
+RESPONSE FORMAT:
+- ALWAYS format your entire response as a bulleted list - do not use paragraphs
+- Start each point with a bullet (•) or dash (-) 
+- Make your responses concise - no more than 5-7 bullet points total
+- For complex issues, use nested bullets with indentation
+
 When correlating findings:
 1. Group related findings that are likely symptoms of the same underlying issue
 2. Identify causal relationships between different findings
@@ -654,12 +660,18 @@ to remind the user what we're trying to accomplish.
 Your task is to generate a clear, concise summary of the analysis results that highlights
 the most important findings, the identified root causes, and recommended actions.
 
-The summary should be structured as follows:
-1. Overview: Brief description of the analyzed system and the issues found
-2. Key Findings: The most significant issues identified across all analysis types
-3. Root Causes: The underlying problems that are causing the observed issues
-4. Recommendations: Clear, actionable steps to resolve the issues
-5. Next Steps: Suggested further investigations if needed
+RESPONSE FORMAT:
+- ALWAYS format your entire response as a bulleted list - do not use paragraphs
+- Start each point with a bullet (•) or dash (-) 
+- Make your responses concise - no more than 5-7 bullet points total
+- For complex issues, use nested bullets with indentation
+
+The summary should cover these areas (all as bullet points):
+- Overview: Brief description of the analyzed system and the issues found
+- Key Findings: The most significant issues identified across all analysis types
+- Root Causes: The underlying problems that are causing the observed issues
+- Recommendations: Clear, actionable steps to resolve the issues
+- Next Steps: Suggested further investigations if needed
 """
         
         # Create a condensed version of the results for the prompt
@@ -859,8 +871,10 @@ Even if the user's question is vague or general, please:
 5. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
 
 IMPORTANT FORMAT REQUIREMENTS:
-- Make your responses SHORT and CONCISE - no more than 4-5 sentences total
-- Use bullet points and numbered lists instead of paragraphs
+- ALWAYS format your entire response as a bulleted list - do not use paragraphs
+- Start each point with a bullet (•) or dash (-) 
+- Make your responses SHORT and CONCISE - no more than 4-5 bullet points total
+- For complex issues, use nested bullets with indentation
 - Avoid detailed explanations unless specifically requested
 - Use technical terms precisely but briefly
 - Focus on actionable information

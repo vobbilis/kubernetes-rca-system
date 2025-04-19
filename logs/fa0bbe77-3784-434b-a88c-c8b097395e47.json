@@ -4,7 +4,7 @@
   "namespace": "default",
   "context": "",
   "created_at": "20250419_232106",
-  "updated_at": "20250419_232134",
+  "updated_at": "20250419_232434",
   "summary": "",
   "status": "in_progress",
   "conversation": [
@@ -12,10 +12,2296 @@
       "role": "system",
       "content": "Investigation started at 2025-04-19 23:21:06",
       "timestamp": "20250419_232106"
+    },
+    {
+      "role": "user",
+      "content": "Check Kubernetes events (filter: type!=Normal)",
+      "timestamp": "20250419_232143"
+    },
+    {
+      "role": "assistant",
+      "content": "Analysis of Kubernetes events completed.",
+      "timestamp": "20250419_232144"
+    },
+    {
+      "role": "user",
+      "content": "Run resources agent analysis",
+      "timestamp": "20250419_232147"
+    },
+    {
+      "role": "assistant",
+      "content": "The cluster analysis reveals multiple critical issues in the default namespace, with 22 pods experiencing problems. The main issues include failing jobs with exit code 1, containers in CrashLoopBackOff state (including OOMKilled instances), pods failing due to missing ConfigMaps and storage class issues, and service connectivity problems due to incorrect selectors. The high number of container restarts (216 for crash-pod and 200 for oom-test) and persistent readiness probe failures indicate significant stability and reliability concerns that require immediate attention.",
+      "timestamp": "20250419_232153"
+    },
+    {
+      "role": "user",
+      "content": "Run comprehensive agent analysis",
+      "timestamp": "20250419_232157"
+    },
+    {
+      "role": "assistant",
+      "content": "The analysis revealed critical issues affecting 21 pods in the default namespace, with multiple high-severity problems including storage infrastructure failures (missing storage class and PVC issues), systematic job failures (consistent exit code 1 across multiple pods), and service configuration gaps (missing selectors and failed health checks). The most urgent issues are storage-related problems causing pod scheduling failures and evictions, along with widespread application failures indicated by multiple failing jobs, while secondary issues include misconfigured services, failed health probes, and container image pull errors.",
+      "timestamp": "20250419_232306"
+    },
+    {
+      "role": "user",
+      "content": "Run resources agent analysis",
+      "timestamp": "20250419_232428"
+    },
+    {
+      "role": "assistant",
+      "content": "The cluster analysis reveals widespread issues in the default namespace, with 24 problematic pods exhibiting various failure modes including CrashLoopBackOff, failed container starts, and resource constraints. Major problems include multiple failing jobs with exit code 1, containers failing liveness/readiness probes, storage-related issues (missing ConfigMaps and PVCs), and resource exhaustion (OOMKilled pods). The service layer also shows configuration issues with two services having selector problems, indicating potential service discovery and networking concerns.",
+      "timestamp": "20250419_232433"
     }
   ],
-  "evidence": {},
-  "agent_findings": {},
+  "evidence": {
+    "kubernetes_events": [
+      {
+        "data": [
+          {
+            "count": 377,
+            "firstTimestamp": "2025-04-18T06:42:43+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "name": "configmap-error",
+              "namespace": "default",
+              "resourceVersion": "15148",
+              "uid": "97321b9b-2f80-4732-9e13-ea96274a5c87"
+            },
+            "lastTimestamp": "2025-04-19T23:18:52+00:00",
+            "message": "MountVolume.SetUp failed for volume \"config-volume\" : configmap \"nonexistent-config\" not found",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:43+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:52+00:00"
+                }
+              ],
+              "name": "configmap-error.18375691916c0c45",
+              "namespace": "default",
+              "resourceVersion": "78093",
+              "uid": "d8f551fa-1933-4dde-b8da-401dfaa3854a"
+            },
+            "reason": "FailedMount",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3943,
+            "firstTimestamp": "2025-04-18T04:55:54+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{crash-pod}",
+              "kind": "Pod",
+              "name": "crash-pod",
+              "namespace": "default",
+              "resourceVersion": "6305",
+              "uid": "38312316-c06c-4a9b-a842-76113f535217"
+            },
+            "lastTimestamp": "2025-04-19T23:21:32+00:00",
+            "message": "Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T04:55:54+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:21:32+00:00"
+                }
+              ],
+              "name": "crash-pod.183750bd3f78cec5",
+              "namespace": "default",
+              "resourceVersion": "78308",
+              "uid": "808c9c52-bb7e-4db4-95e0-69a67618041b"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3301,
+            "firstTimestamp": "2025-04-18T06:42:43+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{nonexistent}",
+              "kind": "Pod",
+              "name": "image-pull-error",
+              "namespace": "default",
+              "resourceVersion": "15040",
+              "uid": "33a3e16a-c9b5-4912-8fea-c39936f268c3"
+            },
+            "lastTimestamp": "2025-04-19T23:18:19+00:00",
+            "message": "Error: ImagePullBackOff",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:43+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:19+00:00"
+                }
+              ],
+              "name": "image-pull-error.183756917fc50da3",
+              "namespace": "default",
+              "resourceVersion": "78047",
+              "uid": "1b4d2f04-fbf7-43be-bd88-c513a5d33185"
+            },
+            "reason": "Failed",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3440,
+            "firstTimestamp": "2025-04-18T06:42:58+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.initContainers{init-fail}",
+              "kind": "Pod",
+              "name": "init-container-fail",
+              "namespace": "default",
+              "resourceVersion": "15087",
+              "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+            },
+            "lastTimestamp": "2025-04-19T23:18:32+00:00",
+            "message": "Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:58+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:32+00:00"
+                }
+              ],
+              "name": "init-container-fail.18375695002a40dc",
+              "namespace": "default",
+              "resourceVersion": "78064",
+              "uid": "2cd1ebcd-7ac6-4d95-8fce-8a9473989e75"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 688,
+            "firstTimestamp": "2025-04-18T06:43:17+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{liveness-probe}",
+              "kind": "Pod",
+              "name": "liveness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15044",
+              "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+            },
+            "lastTimestamp": "2025-04-19T23:14:28+00:00",
+            "message": "Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory\n",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:43:17+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:14:28+00:00"
+                }
+              ],
+              "name": "liveness-probe-fail.1837569977b07ba3",
+              "namespace": "default",
+              "resourceVersion": "77725",
+              "uid": "199527cf-6e75-4b91-9288-fb6d664f7fcc"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 2284,
+            "firstTimestamp": "2025-04-18T06:50:12+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{liveness-probe}",
+              "kind": "Pod",
+              "name": "liveness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15044",
+              "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+            },
+            "lastTimestamp": "2025-04-19T23:18:46+00:00",
+            "message": "Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:50:12+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:46+00:00"
+                }
+              ],
+              "name": "liveness-probe-fail.183756fa1a29df58",
+              "namespace": "default",
+              "resourceVersion": "78085",
+              "uid": "f5c3d3b5-173f-46a8-9348-316699b1033a"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3485,
+            "firstTimestamp": "2025-04-18T06:31:24+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{oom-test}",
+              "kind": "Pod",
+              "name": "oom-test",
+              "namespace": "default",
+              "resourceVersion": "14073",
+              "uid": "425cea75-2ef8-4c32-87c7-f6996dea5c38"
+            },
+            "lastTimestamp": "2025-04-19T23:16:58+00:00",
+            "message": "Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:31:24+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:16:58+00:00"
+                }
+              ],
+              "name": "oom-test.183755f3587ddf6d",
+              "namespace": "default",
+              "resourceVersion": "77933",
+              "uid": "a0eb2ea4-d588-4fff-a1dc-f2b537606f30"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 9287,
+            "firstTimestamp": "2025-04-18T06:43:05+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{readiness-fail}",
+              "kind": "Pod",
+              "name": "readiness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15137",
+              "uid": "6804032b-83b5-43e8-a736-3ebc30187df7"
+            },
+            "lastTimestamp": "2025-04-19T23:18:33+00:00",
+            "message": "Readiness probe failed: HTTP probe failed with statuscode: 404",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:43:05+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:33+00:00"
+                }
+              ],
+              "name": "readiness-probe-fail.18375696a1ac664d",
+              "namespace": "default",
+              "resourceVersion": "78067",
+              "uid": "2a353936-8328-41ab-bdd1-e6fa6428d3f9"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 151,
+            "firstTimestamp": "2025-04-18T06:42:42+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "name": "storage-error-pod",
+              "namespace": "default",
+              "resourceVersion": "15092",
+              "uid": "a977c505-e8cd-449d-a3a0-d35f0b67b479"
+            },
+            "lastTimestamp": "2025-04-19T23:18:18+00:00",
+            "message": "0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:42+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:source": {
+                      "f:component": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kube-scheduler",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:18+00:00"
+                }
+              ],
+              "name": "storage-error-pod.183756915bcbc7be",
+              "namespace": "default",
+              "resourceVersion": "78042",
+              "uid": "213269fd-bf2e-450e-9b60-fbf19bd1928b"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "",
+            "source": {
+              "component": "default-scheduler"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3002,
+            "firstTimestamp": "2025-04-18T06:42:42+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "PersistentVolumeClaim",
+              "name": "storage-error-pvc",
+              "namespace": "default",
+              "resourceVersion": "15091",
+              "uid": "588c0bb7-49b0-4fa0-a5f0-3ef3dace80cb"
+            },
+            "lastTimestamp": "2025-04-19T23:18:22+00:00",
+            "message": "storageclass.storage.k8s.io \"nonexistent-storage-class\" not found",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:42+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:source": {
+                      "f:component": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kube-controller-manager",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:22+00:00"
+                }
+              ],
+              "name": "storage-error-pvc.183756915b8ff574",
+              "namespace": "default",
+              "resourceVersion": "78050",
+              "uid": "6cc3b20c-4cd3-4e8b-ade8-e7210e857807"
+            },
+            "reason": "ProvisioningFailed",
+            "reportingComponent": "persistentvolume-controller",
+            "reportingInstance": "",
+            "source": {
+              "component": "persistentvolume-controller"
+            },
+            "type": "Warning"
+          }
+        ],
+        "timestamp": "20250419_232144"
+      }
+    ]
+  },
+  "agent_findings": {
+    "resources": {
+      "data": {
+        "namespace": "default",
+        "resource_count": {
+          "services": 2,
+          "deployments": 3,
+          "statefulsets": 0,
+          "daemonsets": 0,
+          "pods": 18
+        },
+        "findings": [
+          {
+            "component": "Service/kubernetes",
+            "issue": "Service has no selector",
+            "severity": "medium",
+            "evidence": "No pod selector specified in service definition",
+            "recommendation": "Add appropriate selectors to match target pods",
+            "timestamp": "2025-04-19T23:24:29.351944"
+          },
+          {
+            "component": "Service/readiness-service",
+            "issue": "Service selector matches no pods",
+            "severity": "high",
+            "evidence": "Selector {'app': 'readiness-fail'} does not match any pods in the namespace",
+            "recommendation": "Verify selector labels or check if pods are running",
+            "timestamp": "2025-04-19T23:24:29.493114"
+          },
+          {
+            "component": "Pod/storage-error-pod",
+            "issue": "Pod cannot be scheduled",
+            "severity": "high",
+            "evidence": "Message: 0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+            "recommendation": "Check node resources, taints, tolerations, and node selectors",
+            "timestamp": "2025-04-19T23:24:29.493471"
+          },
+          {
+            "component": "Pod/failing-job-2jdjm/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493532"
+          },
+          {
+            "component": "Pod/failing-job-4ndjw/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493601"
+          },
+          {
+            "component": "Pod/failing-job-6j7g8/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493679"
+          },
+          {
+            "component": "Pod/failing-job-nzfh2/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493738"
+          },
+          {
+            "component": "Pod/failing-job-zkxx9/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493782"
+          },
+          {
+            "component": "Pod/storage-test/storage-test",
+            "issue": "Container terminated with exit code 137",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493825"
+          },
+          {
+            "component": "Pod/failing-job-2jdjm/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493892"
+          },
+          {
+            "component": "Pod/failing-job-4ndjw/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493941"
+          },
+          {
+            "component": "Pod/failing-job-6j7g8/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.493987"
+          },
+          {
+            "component": "Pod/failing-job-nzfh2/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.494035"
+          },
+          {
+            "component": "Pod/failing-job-zkxx9/fail-container",
+            "issue": "Container terminated with exit code 1",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.494079"
+          },
+          {
+            "component": "Pod/storage-test/storage-test",
+            "issue": "Container terminated with exit code 137",
+            "severity": "high",
+            "evidence": "Reason: Error, Message: ",
+            "recommendation": "Check container logs and fix application errors",
+            "timestamp": "2025-04-19T23:24:29.494132"
+          },
+          {
+            "component": "Pod/crash-pod/crash-pod",
+            "issue": "Container in CrashLoopBackOff with 217 restarts",
+            "severity": "high",
+            "evidence": "Last exit code: 1, reason: Error",
+            "recommendation": "Check container logs for application errors and fix the root cause",
+            "timestamp": "2025-04-19T23:24:29.494213"
+          },
+          {
+            "component": "Pod/liveness-probe-fail/liveness-probe",
+            "issue": "Container in CrashLoopBackOff with 231 restarts",
+            "severity": "high",
+            "evidence": "Last exit code: 137, reason: Error",
+            "recommendation": "Check container logs for application errors and fix the root cause",
+            "timestamp": "2025-04-19T23:24:29.528641"
+          },
+          {
+            "component": "Pod/oom-test/oom-test",
+            "issue": "Container in CrashLoopBackOff with 201 restarts",
+            "severity": "high",
+            "evidence": "Last exit code: 137, reason: OOMKilled",
+            "recommendation": "Check container logs for application errors and fix the root cause",
+            "timestamp": "2025-04-19T23:24:29.564913"
+          },
+          {
+            "component": "Pod/crash-pod/crash-pod",
+            "issue": "Container has no readiness probe",
+            "severity": "low",
+            "evidence": "No readiness probe specified in container definition",
+            "recommendation": "Add appropriate readiness probe to container",
+            "timestamp": "2025-04-19T23:24:29.601536"
+          },
+          {
+            "component": "Pod/liveness-probe-fail/liveness-probe",
+            "issue": "Container has no readiness probe",
+            "severity": "low",
+            "evidence": "No readiness probe specified in container definition",
+            "recommendation": "Add appropriate readiness probe to container",
+            "timestamp": "2025-04-19T23:24:29.601610"
+          },
+          {
+            "component": "Pod/oom-test/oom-test",
+            "issue": "Container has no readiness probe",
+            "severity": "low",
+            "evidence": "No readiness probe specified in container definition",
+            "recommendation": "Add appropriate readiness probe to container",
+            "timestamp": "2025-04-19T23:24:29.601664"
+          },
+          {
+            "component": "Pod/readiness-probe-fail/readiness-fail",
+            "issue": "Container not passing readiness probe",
+            "severity": "medium",
+            "evidence": "Container is running but failing readiness checks",
+            "recommendation": "Check application logs and fix readiness issues",
+            "timestamp": "2025-04-19T23:24:29.601706"
+          },
+          {
+            "component": "Pod/storage-test",
+            "issue": "Pod has been evicted",
+            "severity": "medium",
+            "evidence": "Eviction message: Usage of EmptyDir volume \"test-volume\" exceeds the limit \"50Mi\". ",
+            "recommendation": "Check for resource constraints, particularly node disk pressure",
+            "timestamp": "2025-04-19T23:24:29.601823"
+          },
+          {
+            "component": "Namespace/default",
+            "issue": "Found 24 pods with issues",
+            "severity": "high",
+            "evidence": "Pending: configmap-error, image-pull-error, init-container-fail, storage-error-pod\nFailed: failing-job-2jdjm, failing-job-4ndjw, failing-job-6j7g8, failing-job-nzfh2, failing-job-zkxx9 and 1 more\nCrashloopbackoff: crash-pod, liveness-probe-fail, oom-test\nError: failing-job-2jdjm, failing-job-4ndjw, failing-job-6j7g8, failing-job-nzfh2, failing-job-zkxx9 and 1 more\nEvicted: storage-test\nNot Ready: crash-pod, liveness-probe-fail, oom-test, readiness-probe-fail",
+            "recommendation": "Investigate pod issues based on their specific error states",
+            "timestamp": "2025-04-19T23:24:29.601983"
+          },
+          {
+            "component": "Pod/configmap-error",
+            "issue": "Event warning: FailedMount",
+            "severity": "high",
+            "evidence": "Message: MountVolume.SetUp failed for volume \"config-volume\" : configmap \"nonexistent-config\" not found (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602158"
+          },
+          {
+            "component": "Pod/crash-pod",
+            "issue": "Event warning: BackOff",
+            "severity": "medium",
+            "evidence": "Message: Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217) (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602304"
+          },
+          {
+            "component": "Pod/image-pull-error",
+            "issue": "Event warning: Failed",
+            "severity": "high",
+            "evidence": "Message: Error: ImagePullBackOff (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602429"
+          },
+          {
+            "component": "Pod/init-container-fail",
+            "issue": "Event warning: BackOff",
+            "severity": "medium",
+            "evidence": "Message: Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab) (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602550"
+          },
+          {
+            "component": "Pod/liveness-probe-fail",
+            "issue": "Event warning: Unhealthy",
+            "severity": "medium",
+            "evidence": "Message: Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory\n (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602705"
+          },
+          {
+            "component": "Pod/liveness-probe-fail",
+            "issue": "Event warning: BackOff",
+            "severity": "medium",
+            "evidence": "Message: Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9) (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602769"
+          },
+          {
+            "component": "Pod/oom-test",
+            "issue": "Event warning: BackOff",
+            "severity": "medium",
+            "evidence": "Message: Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38) (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602838"
+          },
+          {
+            "component": "Pod/readiness-probe-fail",
+            "issue": "Event warning: Unhealthy",
+            "severity": "medium",
+            "evidence": "Message: Readiness probe failed: HTTP probe failed with statuscode: 404 (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602901"
+          },
+          {
+            "component": "PersistentVolumeClaim/storage-error-pvc",
+            "issue": "Event warning: ProvisioningFailed",
+            "severity": "medium",
+            "evidence": "Message: storageclass.storage.k8s.io \"nonexistent-storage-class\" not found (event count: 1)",
+            "recommendation": "Investigate the reported issue and take appropriate action",
+            "timestamp": "2025-04-19T23:24:29.602963"
+          }
+        ],
+        "reasoning_steps": [],
+        "events": [
+          {
+            "count": 377,
+            "firstTimestamp": "2025-04-18T06:42:43+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "name": "configmap-error",
+              "namespace": "default",
+              "resourceVersion": "15148",
+              "uid": "97321b9b-2f80-4732-9e13-ea96274a5c87"
+            },
+            "lastTimestamp": "2025-04-19T23:18:52+00:00",
+            "message": "MountVolume.SetUp failed for volume \"config-volume\" : configmap \"nonexistent-config\" not found",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:43+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:18:52+00:00"
+                }
+              ],
+              "name": "configmap-error.18375691916c0c45",
+              "namespace": "default",
+              "resourceVersion": "78093",
+              "uid": "d8f551fa-1933-4dde-b8da-401dfaa3854a"
+            },
+            "reason": "FailedMount",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3943,
+            "firstTimestamp": "2025-04-18T04:55:54+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{crash-pod}",
+              "kind": "Pod",
+              "name": "crash-pod",
+              "namespace": "default",
+              "resourceVersion": "6305",
+              "uid": "38312316-c06c-4a9b-a842-76113f535217"
+            },
+            "lastTimestamp": "2025-04-19T23:21:32+00:00",
+            "message": "Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T04:55:54+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:21:32+00:00"
+                }
+              ],
+              "name": "crash-pod.183750bd3f78cec5",
+              "namespace": "default",
+              "resourceVersion": "78308",
+              "uid": "808c9c52-bb7e-4db4-95e0-69a67618041b"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3323,
+            "firstTimestamp": "2025-04-18T06:42:43+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{nonexistent}",
+              "kind": "Pod",
+              "name": "image-pull-error",
+              "namespace": "default",
+              "resourceVersion": "15040",
+              "uid": "33a3e16a-c9b5-4912-8fea-c39936f268c3"
+            },
+            "lastTimestamp": "2025-04-19T23:23:21+00:00",
+            "message": "Error: ImagePullBackOff",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:43+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:21+00:00"
+                }
+              ],
+              "name": "image-pull-error.183756917fc50da3",
+              "namespace": "default",
+              "resourceVersion": "78465",
+              "uid": "1b4d2f04-fbf7-43be-bd88-c513a5d33185"
+            },
+            "reason": "Failed",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3463,
+            "firstTimestamp": "2025-04-18T06:42:58+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.initContainers{init-fail}",
+              "kind": "Pod",
+              "name": "init-container-fail",
+              "namespace": "default",
+              "resourceVersion": "15087",
+              "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+            },
+            "lastTimestamp": "2025-04-19T23:23:29+00:00",
+            "message": "Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:58+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:29+00:00"
+                }
+              ],
+              "name": "init-container-fail.18375695002a40dc",
+              "namespace": "default",
+              "resourceVersion": "78477",
+              "uid": "2cd1ebcd-7ac6-4d95-8fce-8a9473989e75"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 688,
+            "firstTimestamp": "2025-04-18T06:43:17+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{liveness-probe}",
+              "kind": "Pod",
+              "name": "liveness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15044",
+              "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+            },
+            "lastTimestamp": "2025-04-19T23:14:28+00:00",
+            "message": "Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory\n",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:43:17+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:14:28+00:00"
+                }
+              ],
+              "name": "liveness-probe-fail.1837569977b07ba3",
+              "namespace": "default",
+              "resourceVersion": "77725",
+              "uid": "199527cf-6e75-4b91-9288-fb6d664f7fcc"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 2298,
+            "firstTimestamp": "2025-04-18T06:50:12+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{liveness-probe}",
+              "kind": "Pod",
+              "name": "liveness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15044",
+              "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+            },
+            "lastTimestamp": "2025-04-19T23:23:54+00:00",
+            "message": "Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:50:12+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:54+00:00"
+                }
+              ],
+              "name": "liveness-probe-fail.183756fa1a29df58",
+              "namespace": "default",
+              "resourceVersion": "78513",
+              "uid": "f5c3d3b5-173f-46a8-9348-316699b1033a"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3508,
+            "firstTimestamp": "2025-04-18T06:31:24+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{oom-test}",
+              "kind": "Pod",
+              "name": "oom-test",
+              "namespace": "default",
+              "resourceVersion": "14073",
+              "uid": "425cea75-2ef8-4c32-87c7-f6996dea5c38"
+            },
+            "lastTimestamp": "2025-04-19T23:21:56+00:00",
+            "message": "Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38)",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:31:24+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:21:56+00:00"
+                }
+              ],
+              "name": "oom-test.183755f3587ddf6d",
+              "namespace": "default",
+              "resourceVersion": "78344",
+              "uid": "a0eb2ea4-d588-4fff-a1dc-f2b537606f30"
+            },
+            "reason": "BackOff",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 9350,
+            "firstTimestamp": "2025-04-18T06:43:05+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "fieldPath": "spec.containers{readiness-fail}",
+              "kind": "Pod",
+              "name": "readiness-probe-fail",
+              "namespace": "default",
+              "resourceVersion": "15137",
+              "uid": "6804032b-83b5-43e8-a736-3ebc30187df7"
+            },
+            "lastTimestamp": "2025-04-19T23:23:35+00:00",
+            "message": "Readiness probe failed: HTTP probe failed with statuscode: 404",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:43:05+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:reportingInstance": {},
+                    "f:source": {
+                      "f:component": {},
+                      "f:host": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kubelet",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:35+00:00"
+                }
+              ],
+              "name": "readiness-probe-fail.18375696a1ac664d",
+              "namespace": "default",
+              "resourceVersion": "78486",
+              "uid": "2a353936-8328-41ab-bdd1-e6fa6428d3f9"
+            },
+            "reason": "Unhealthy",
+            "reportingComponent": "kubelet",
+            "reportingInstance": "kind-control-plane",
+            "source": {
+              "component": "kubelet",
+              "host": "kind-control-plane"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 152,
+            "firstTimestamp": "2025-04-18T06:42:42+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "name": "storage-error-pod",
+              "namespace": "default",
+              "resourceVersion": "15092",
+              "uid": "a977c505-e8cd-449d-a3a0-d35f0b67b479"
+            },
+            "lastTimestamp": "2025-04-19T23:23:18+00:00",
+            "message": "0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:42+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:source": {
+                      "f:component": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kube-scheduler",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:18+00:00"
+                }
+              ],
+              "name": "storage-error-pod.183756915bcbc7be",
+              "namespace": "default",
+              "resourceVersion": "78459",
+              "uid": "213269fd-bf2e-450e-9b60-fbf19bd1928b"
+            },
+            "reason": "FailedScheduling",
+            "reportingComponent": "default-scheduler",
+            "reportingInstance": "",
+            "source": {
+              "component": "default-scheduler"
+            },
+            "type": "Warning"
+          },
+          {
+            "count": 3022,
+            "firstTimestamp": "2025-04-18T06:42:42+00:00",
+            "involvedObject": {
+              "apiVersion": "v1",
+              "kind": "PersistentVolumeClaim",
+              "name": "storage-error-pvc",
+              "namespace": "default",
+              "resourceVersion": "15091",
+              "uid": "588c0bb7-49b0-4fa0-a5f0-3ef3dace80cb"
+            },
+            "lastTimestamp": "2025-04-19T23:23:22+00:00",
+            "message": "storageclass.storage.k8s.io \"nonexistent-storage-class\" not found",
+            "metadata": {
+              "creationTimestamp": "2025-04-18T06:42:42+00:00",
+              "managedFields": [
+                {
+                  "apiVersion": "v1",
+                  "fieldsType": "FieldsV1",
+                  "fieldsV1": {
+                    "f:count": {},
+                    "f:firstTimestamp": {},
+                    "f:involvedObject": {},
+                    "f:lastTimestamp": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:reportingComponent": {},
+                    "f:source": {
+                      "f:component": {}
+                    },
+                    "f:type": {}
+                  },
+                  "manager": "kube-controller-manager",
+                  "operation": "Update",
+                  "time": "2025-04-19T23:23:22+00:00"
+                }
+              ],
+              "name": "storage-error-pvc.183756915b8ff574",
+              "namespace": "default",
+              "resourceVersion": "78469",
+              "uid": "6cc3b20c-4cd3-4e8b-ade8-e7210e857807"
+            },
+            "reason": "ProvisioningFailed",
+            "reportingComponent": "persistentvolume-controller",
+            "reportingInstance": "",
+            "source": {
+              "component": "persistentvolume-controller"
+            },
+            "type": "Warning"
+          }
+        ],
+        "summary": "The cluster analysis reveals widespread issues in the default namespace, with 24 problematic pods exhibiting various failure modes including CrashLoopBackOff, failed container starts, and resource constraints. Major problems include multiple failing jobs with exit code 1, containers failing liveness/readiness probes, storage-related issues (missing ConfigMaps and PVCs), and resource exhaustion (OOMKilled pods). The service layer also shows configuration issues with two services having selector problems, indicating potential service discovery and networking concerns."
+      },
+      "timestamp": "20250419_232433"
+    },
+    "comprehensive": {
+      "data": {
+        "resources": {
+          "namespace": "default",
+          "resource_count": {
+            "services": 2,
+            "deployments": 3,
+            "statefulsets": 0,
+            "daemonsets": 0,
+            "pods": 18
+          },
+          "findings": [
+            {
+              "component": "Service/kubernetes",
+              "issue": "Service has no selector",
+              "severity": "medium",
+              "evidence": "No pod selector specified in service definition",
+              "recommendation": "Add appropriate selectors to match target pods",
+              "timestamp": "2025-04-19T23:21:58.565325",
+              "source": "resources"
+            },
+            {
+              "component": "Service/readiness-service",
+              "issue": "Service selector matches no pods",
+              "severity": "high",
+              "evidence": "Selector {'app': 'readiness-fail'} does not match any pods in the namespace",
+              "recommendation": "Verify selector labels or check if pods are running",
+              "timestamp": "2025-04-19T23:21:58.706303",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/storage-error-pod",
+              "issue": "Pod cannot be scheduled",
+              "severity": "high",
+              "evidence": "Message: 0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+              "recommendation": "Check node resources, taints, tolerations, and node selectors",
+              "timestamp": "2025-04-19T23:21:58.706679",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-2jdjm/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.706762",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-4ndjw/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.706839",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-6j7g8/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.706906",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-nzfh2/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.706979",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-zkxx9/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707053",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/storage-test/storage-test",
+              "issue": "Container terminated with exit code 137",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707132",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/crash-pod/crash-pod",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707190",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-2jdjm/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707242",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-4ndjw/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707298",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-6j7g8/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707370",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-nzfh2/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707436",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/failing-job-zkxx9/fail-container",
+              "issue": "Container terminated with exit code 1",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707480",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/storage-test/storage-test",
+              "issue": "Container terminated with exit code 137",
+              "severity": "high",
+              "evidence": "Reason: Error, Message: ",
+              "recommendation": "Check container logs and fix application errors",
+              "timestamp": "2025-04-19T23:21:58.707543",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/crash-pod/crash-pod",
+              "issue": "Container has no readiness probe",
+              "severity": "low",
+              "evidence": "No readiness probe specified in container definition",
+              "recommendation": "Add appropriate readiness probe to container",
+              "timestamp": "2025-04-19T23:21:58.707638",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/oom-test/oom-test",
+              "issue": "Container has no readiness probe",
+              "severity": "low",
+              "evidence": "No readiness probe specified in container definition",
+              "recommendation": "Add appropriate readiness probe to container",
+              "timestamp": "2025-04-19T23:21:58.707672",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/readiness-probe-fail/readiness-fail",
+              "issue": "Container not passing readiness probe",
+              "severity": "medium",
+              "evidence": "Container is running but failing readiness checks",
+              "recommendation": "Check application logs and fix readiness issues",
+              "timestamp": "2025-04-19T23:21:58.707708",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/storage-test",
+              "issue": "Pod has been evicted",
+              "severity": "medium",
+              "evidence": "Eviction message: Usage of EmptyDir volume \"test-volume\" exceeds the limit \"50Mi\". ",
+              "recommendation": "Check for resource constraints, particularly node disk pressure",
+              "timestamp": "2025-04-19T23:21:58.707784",
+              "source": "resources"
+            },
+            {
+              "component": "Namespace/default",
+              "issue": "Found 21 pods with issues",
+              "severity": "high",
+              "evidence": "Pending: configmap-error, image-pull-error, init-container-fail, storage-error-pod\nFailed: failing-job-2jdjm, failing-job-4ndjw, failing-job-6j7g8, failing-job-nzfh2, failing-job-zkxx9 and 1 more\nError: crash-pod, failing-job-2jdjm, failing-job-4ndjw, failing-job-6j7g8, failing-job-nzfh2 and 2 more\nEvicted: storage-test\nNot Ready: crash-pod, oom-test, readiness-probe-fail",
+              "recommendation": "Investigate pod issues based on their specific error states",
+              "timestamp": "2025-04-19T23:21:58.707866",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/configmap-error",
+              "issue": "Event warning: FailedMount",
+              "severity": "high",
+              "evidence": "Message: MountVolume.SetUp failed for volume \"config-volume\" : configmap \"nonexistent-config\" not found (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.707940",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/crash-pod",
+              "issue": "Event warning: BackOff",
+              "severity": "medium",
+              "evidence": "Message: Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217) (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708009",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/image-pull-error",
+              "issue": "Event warning: Failed",
+              "severity": "high",
+              "evidence": "Message: Error: ImagePullBackOff (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708098",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/init-container-fail",
+              "issue": "Event warning: BackOff",
+              "severity": "medium",
+              "evidence": "Message: Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab) (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708160",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/liveness-probe-fail",
+              "issue": "Event warning: Unhealthy",
+              "severity": "medium",
+              "evidence": "Message: Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory\n (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708219",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/liveness-probe-fail",
+              "issue": "Event warning: BackOff",
+              "severity": "medium",
+              "evidence": "Message: Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9) (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708272",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/oom-test",
+              "issue": "Event warning: BackOff",
+              "severity": "medium",
+              "evidence": "Message: Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38) (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708329",
+              "source": "resources"
+            },
+            {
+              "component": "Pod/readiness-probe-fail",
+              "issue": "Event warning: Unhealthy",
+              "severity": "medium",
+              "evidence": "Message: Readiness probe failed: HTTP probe failed with statuscode: 404 (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708389",
+              "source": "resources"
+            },
+            {
+              "component": "PersistentVolumeClaim/storage-error-pvc",
+              "issue": "Event warning: ProvisioningFailed",
+              "severity": "medium",
+              "evidence": "Message: storageclass.storage.k8s.io \"nonexistent-storage-class\" not found (event count: 1)",
+              "recommendation": "Investigate the reported issue and take appropriate action",
+              "timestamp": "2025-04-19T23:21:58.708465",
+              "source": "resources"
+            }
+          ],
+          "reasoning_steps": [],
+          "events": [
+            {
+              "count": 377,
+              "firstTimestamp": "2025-04-18T06:42:43+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "configmap-error",
+                "namespace": "default",
+                "resourceVersion": "15148",
+                "uid": "97321b9b-2f80-4732-9e13-ea96274a5c87"
+              },
+              "lastTimestamp": "2025-04-19T23:18:52+00:00",
+              "message": "MountVolume.SetUp failed for volume \"config-volume\" : configmap \"nonexistent-config\" not found",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:42:43+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:52+00:00"
+                  }
+                ],
+                "name": "configmap-error.18375691916c0c45",
+                "namespace": "default",
+                "resourceVersion": "78093",
+                "uid": "d8f551fa-1933-4dde-b8da-401dfaa3854a"
+              },
+              "reason": "FailedMount",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 3943,
+              "firstTimestamp": "2025-04-18T04:55:54+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{crash-pod}",
+                "kind": "Pod",
+                "name": "crash-pod",
+                "namespace": "default",
+                "resourceVersion": "6305",
+                "uid": "38312316-c06c-4a9b-a842-76113f535217"
+              },
+              "lastTimestamp": "2025-04-19T23:21:32+00:00",
+              "message": "Back-off restarting failed container crash-pod in pod crash-pod_default(38312316-c06c-4a9b-a842-76113f535217)",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T04:55:54+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:21:32+00:00"
+                  }
+                ],
+                "name": "crash-pod.183750bd3f78cec5",
+                "namespace": "default",
+                "resourceVersion": "78308",
+                "uid": "808c9c52-bb7e-4db4-95e0-69a67618041b"
+              },
+              "reason": "BackOff",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 3301,
+              "firstTimestamp": "2025-04-18T06:42:43+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{nonexistent}",
+                "kind": "Pod",
+                "name": "image-pull-error",
+                "namespace": "default",
+                "resourceVersion": "15040",
+                "uid": "33a3e16a-c9b5-4912-8fea-c39936f268c3"
+              },
+              "lastTimestamp": "2025-04-19T23:18:19+00:00",
+              "message": "Error: ImagePullBackOff",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:42:43+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:19+00:00"
+                  }
+                ],
+                "name": "image-pull-error.183756917fc50da3",
+                "namespace": "default",
+                "resourceVersion": "78047",
+                "uid": "1b4d2f04-fbf7-43be-bd88-c513a5d33185"
+              },
+              "reason": "Failed",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 3440,
+              "firstTimestamp": "2025-04-18T06:42:58+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.initContainers{init-fail}",
+                "kind": "Pod",
+                "name": "init-container-fail",
+                "namespace": "default",
+                "resourceVersion": "15087",
+                "uid": "eb3eca99-7dde-46e7-8ce0-5fc983d965ab"
+              },
+              "lastTimestamp": "2025-04-19T23:18:32+00:00",
+              "message": "Back-off restarting failed container init-fail in pod init-container-fail_default(eb3eca99-7dde-46e7-8ce0-5fc983d965ab)",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:42:58+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:32+00:00"
+                  }
+                ],
+                "name": "init-container-fail.18375695002a40dc",
+                "namespace": "default",
+                "resourceVersion": "78064",
+                "uid": "2cd1ebcd-7ac6-4d95-8fce-8a9473989e75"
+              },
+              "reason": "BackOff",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 688,
+              "firstTimestamp": "2025-04-18T06:43:17+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{liveness-probe}",
+                "kind": "Pod",
+                "name": "liveness-probe-fail",
+                "namespace": "default",
+                "resourceVersion": "15044",
+                "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+              },
+              "lastTimestamp": "2025-04-19T23:14:28+00:00",
+              "message": "Liveness probe failed: cat: can't open '/tmp/healthy': No such file or directory\n",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:43:17+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:14:28+00:00"
+                  }
+                ],
+                "name": "liveness-probe-fail.1837569977b07ba3",
+                "namespace": "default",
+                "resourceVersion": "77725",
+                "uid": "199527cf-6e75-4b91-9288-fb6d664f7fcc"
+              },
+              "reason": "Unhealthy",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 2284,
+              "firstTimestamp": "2025-04-18T06:50:12+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{liveness-probe}",
+                "kind": "Pod",
+                "name": "liveness-probe-fail",
+                "namespace": "default",
+                "resourceVersion": "15044",
+                "uid": "76b89a7f-1ca9-479e-a963-6a4939e493a9"
+              },
+              "lastTimestamp": "2025-04-19T23:18:46+00:00",
+              "message": "Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9)",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:50:12+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:46+00:00"
+                  }
+                ],
+                "name": "liveness-probe-fail.183756fa1a29df58",
+                "namespace": "default",
+                "resourceVersion": "78085",
+                "uid": "f5c3d3b5-173f-46a8-9348-316699b1033a"
+              },
+              "reason": "BackOff",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 3508,
+              "firstTimestamp": "2025-04-18T06:31:24+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{oom-test}",
+                "kind": "Pod",
+                "name": "oom-test",
+                "namespace": "default",
+                "resourceVersion": "14073",
+                "uid": "425cea75-2ef8-4c32-87c7-f6996dea5c38"
+              },
+              "lastTimestamp": "2025-04-19T23:21:56+00:00",
+              "message": "Back-off restarting failed container oom-test in pod oom-test_default(425cea75-2ef8-4c32-87c7-f6996dea5c38)",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:31:24+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:21:56+00:00"
+                  }
+                ],
+                "name": "oom-test.183755f3587ddf6d",
+                "namespace": "default",
+                "resourceVersion": "78344",
+                "uid": "a0eb2ea4-d588-4fff-a1dc-f2b537606f30"
+              },
+              "reason": "BackOff",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 9287,
+              "firstTimestamp": "2025-04-18T06:43:05+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "fieldPath": "spec.containers{readiness-fail}",
+                "kind": "Pod",
+                "name": "readiness-probe-fail",
+                "namespace": "default",
+                "resourceVersion": "15137",
+                "uid": "6804032b-83b5-43e8-a736-3ebc30187df7"
+              },
+              "lastTimestamp": "2025-04-19T23:18:33+00:00",
+              "message": "Readiness probe failed: HTTP probe failed with statuscode: 404",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:43:05+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:reportingInstance": {},
+                      "f:source": {
+                        "f:component": {},
+                        "f:host": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kubelet",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:33+00:00"
+                  }
+                ],
+                "name": "readiness-probe-fail.18375696a1ac664d",
+                "namespace": "default",
+                "resourceVersion": "78067",
+                "uid": "2a353936-8328-41ab-bdd1-e6fa6428d3f9"
+              },
+              "reason": "Unhealthy",
+              "reportingComponent": "kubelet",
+              "reportingInstance": "kind-control-plane",
+              "source": {
+                "component": "kubelet",
+                "host": "kind-control-plane"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 151,
+              "firstTimestamp": "2025-04-18T06:42:42+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "name": "storage-error-pod",
+                "namespace": "default",
+                "resourceVersion": "15092",
+                "uid": "a977c505-e8cd-449d-a3a0-d35f0b67b479"
+              },
+              "lastTimestamp": "2025-04-19T23:18:18+00:00",
+              "message": "0/1 nodes are available: pod has unbound immediate PersistentVolumeClaims. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:42:42+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:source": {
+                        "f:component": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kube-scheduler",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:18+00:00"
+                  }
+                ],
+                "name": "storage-error-pod.183756915bcbc7be",
+                "namespace": "default",
+                "resourceVersion": "78042",
+                "uid": "213269fd-bf2e-450e-9b60-fbf19bd1928b"
+              },
+              "reason": "FailedScheduling",
+              "reportingComponent": "default-scheduler",
+              "reportingInstance": "",
+              "source": {
+                "component": "default-scheduler"
+              },
+              "type": "Warning"
+            },
+            {
+              "count": 3002,
+              "firstTimestamp": "2025-04-18T06:42:42+00:00",
+              "involvedObject": {
+                "apiVersion": "v1",
+                "kind": "PersistentVolumeClaim",
+                "name": "storage-error-pvc",
+                "namespace": "default",
+                "resourceVersion": "15091",
+                "uid": "588c0bb7-49b0-4fa0-a5f0-3ef3dace80cb"
+              },
+              "lastTimestamp": "2025-04-19T23:18:22+00:00",
+              "message": "storageclass.storage.k8s.io \"nonexistent-storage-class\" not found",
+              "metadata": {
+                "creationTimestamp": "2025-04-18T06:42:42+00:00",
+                "managedFields": [
+                  {
+                    "apiVersion": "v1",
+                    "fieldsType": "FieldsV1",
+                    "fieldsV1": {
+                      "f:count": {},
+                      "f:firstTimestamp": {},
+                      "f:involvedObject": {},
+                      "f:lastTimestamp": {},
+                      "f:message": {},
+                      "f:reason": {},
+                      "f:reportingComponent": {},
+                      "f:source": {
+                        "f:component": {}
+                      },
+                      "f:type": {}
+                    },
+                    "manager": "kube-controller-manager",
+                    "operation": "Update",
+                    "time": "2025-04-19T23:18:22+00:00"
+                  }
+                ],
+                "name": "storage-error-pvc.183756915b8ff574",
+                "namespace": "default",
+                "resourceVersion": "78050",
+                "uid": "6cc3b20c-4cd3-4e8b-ade8-e7210e857807"
+              },
+              "reason": "ProvisioningFailed",
+              "reportingComponent": "persistentvolume-controller",
+              "reportingInstance": "",
+              "source": {
+                "component": "persistentvolume-controller"
+              },
+              "type": "Warning"
+            }
+          ]
+        },
+        "metrics": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPMetricsAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPMetricsAgent",
+              "timestamp": "2025-04-19T23:22:05.834756"
+            }
+          ]
+        },
+        "logs": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPLogsAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPLogsAgent",
+              "timestamp": "2025-04-19T23:22:11.756837"
+            }
+          ]
+        },
+        "events": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPEventsAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPEventsAgent",
+              "timestamp": "2025-04-19T23:22:20.318204"
+            }
+          ]
+        },
+        "topology": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPTopologyAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPTopologyAgent",
+              "timestamp": "2025-04-19T23:22:24.981245"
+            }
+          ]
+        },
+        "traces": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPTracesAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPTracesAgent",
+              "timestamp": "2025-04-19T23:22:31.924153"
+            }
+          ]
+        },
+        "correlated_findings": {
+          "findings_count": 30,
+          "correlation_analysis": "I'll analyze these findings and group them into related issues to identify root causes.\n\n### A. Related Issue Groups\n\n1. **Storage Issues Group**\n- Pod/storage-error-pod cannot be scheduled due to unbound PVC\n- PersistentVolumeClaim/storage-error-pvc provisioning failed\n- Pod/storage-test evicted due to EmptyDir volume limit\n- Pod/storage-test container terminated (exit 137)\n\n2. **Job Failure Group**\n- Multiple instances of failing-job pods (2jdjm, 4ndjw, 6j7g8, nzfh2, zkxx9)\n- All showing exit code 1\n- Multiple duplicate entries indicating persistent failures\n\n3. **Configuration Issues Group**\n- Service/kubernetes has no selector\n- Service/readiness-service selector matches no pods\n- Pod/configmap-error FailedMount for nonexistent configmap\n\n4. **Health Probe Issues Group**\n- Pod/readiness-probe-fail not passing readiness checks\n- Pod/liveness-probe-fail failing health checks\n- Pod/crash-pod and Pod/oom-test missing readiness probes\n\n5. **Container Image/Init Issues Group**\n- Pod/image-pull-error ImagePullBackOff\n- Pod/init-container-fail failing to start\n\n### B. Root Cause Analysis by Group\n\n1. **Storage Issues Group**\nRoot Cause: Missing or misconfigured storage infrastructure\n- Primary evidence: Nonexistent storage class \"nonexistent-storage-class\"\n- Secondary issues: EmptyDir volume limits causing evictions\n- Impact: Multiple pods failing due to storage-related issues\n\n2. **Job Failure Group**\nRoot Cause: Systematic application error in job definition\n- Evidence: Consistent exit code 1 across multiple job instances\n- Pattern suggests application-level error rather than infrastructure issue\n\n3. **Configuration Issues Group**\nRoot Cause: Misconfigured resource definitions\n- Evidence: Missing selectors, nonexistent ConfigMaps\n- Suggests deployment configuration errors or incomplete resource definitions\n\n4. **Health Probe Issues Group**\nRoot Cause: Application health check implementation issues\n- Evidence: Mix of missing probes and failing health checks\n- HTTP 404 errors and missing health check endpoints\n\n5. **Container Image/Init Issues Group**\nRoot Cause: Container image availability/configuration issues\n- Evidence: ImagePullBackOff errors\n- Init container failures suggesting startup configuration problems\n\n### C. Ranked Root Causes (by severity and impact)\n\n1. **Storage Infrastructure Issues**\n- Severity: High\n- Impact: Multiple pods and persistent volumes affected\n- Evidence: Missing storage class, failed PVC provisioning, evictions\n- Affects core infrastructure functionality\n\n2. **Systematic Job Application Errors**\n- Severity: High\n- Impact: Multiple job instances affected\n- Evidence: Consistent exit code 1 across all job pods\n- Indicates widespread application failure\n\n3. **Resource Configuration Errors**\n- Severity: Medium-High\n- Impact: Services and ConfigMaps affected\n- Evidence: Missing selectors, nonexistent resources\n- Deployment configuration issues\n\n4. **Container Image/Registry Issues**\n- Severity: Medium\n- Impact: New deployments affected\n- Evidence: Image pull failures\n- Affects deployment of new resources\n\n5. **Health Check Implementation Issues**\n- Severity: Medium-Low\n- Impact: Service reliability affected\n- Evidence: Failed readiness/liveness probes\n- Affects service availability but not core functionality\n\nThe most critical issues to address are the storage infrastructure and job application errors, as they affect multiple resources and show systematic failures rather than isolated incidents.",
+          "reasoning_steps": [
+            {
+              "observation": "Analyzed provided data",
+              "conclusion": "Generated analysis based on context"
+            }
+          ]
+        },
+        "summary": "The analysis revealed critical issues affecting 21 pods in the default namespace, with multiple high-severity problems including storage infrastructure failures (missing storage class and PVC issues), systematic job failures (consistent exit code 1 across multiple pods), and service configuration gaps (missing selectors and failed health checks). The most urgent issues are storage-related problems causing pod scheduling failures and evictions, along with widespread application failures indicated by multiple failing jobs, while secondary issues include misconfigured services, failed health probes, and container image pull errors."
+      },
+      "timestamp": "20250419_232306"
+    }
+  },
   "next_actions": [
     {
       "text": "Run a comprehensive analysis of your namespace",
