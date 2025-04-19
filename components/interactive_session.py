@@ -193,7 +193,19 @@ def _render_hypothesis_generation(coordinator):
         st.warning("No hypothesis data available. Please select a component first.")
         return
     
-    hypothesis_data = st.session_state.analysis_history[-1].get('data', {})
+    # Find the latest component selection or hypothesis rejection entry
+    component_entry_idx = -1
+    for i in range(len(st.session_state.analysis_history) - 1, -1, -1):
+        entry = st.session_state.analysis_history[i]
+        if entry.get('stage') in ['component_selection', 'hypothesis_rejection']:
+            component_entry_idx = i
+            break
+    
+    if component_entry_idx == -1:
+        st.warning("Could not find component selection data. Please select a component first.")
+        return
+    
+    hypothesis_data = st.session_state.analysis_history[component_entry_idx].get('data', {})
     component = hypothesis_data.get('component', 'Unknown')
     finding = hypothesis_data.get('finding', {})
     hypotheses = hypothesis_data.get('hypotheses', [])
@@ -374,7 +386,30 @@ def _render_investigation(coordinator):
     
     # Option to reject hypothesis and go back
     if st.button("This hypothesis is incorrect, go back"):
+        # Set the stage back to hypothesis generation
         st.session_state.analysis_stage = 'hypothesis_generation'
+        
+        # We need to make sure we're showing the previous data
+        # Find the component selection entry in the history
+        component_selection_idx = -1
+        for i, entry in enumerate(st.session_state.analysis_history):
+            if entry.get('stage') == 'component_selection':
+                component_selection_idx = i
+                break
+                
+        if component_selection_idx >= 0:
+            # Get the component data
+            component_data = st.session_state.analysis_history[component_selection_idx].get('data', {})
+            component = component_data.get('component')
+            finding = component_data.get('finding', {})
+            
+            # Add a history entry to go back to hypothesis generation with the same component
+            add_to_history('hypothesis_rejection', {
+                'component': component,
+                'finding': finding,
+                'rejected_hypothesis': hypothesis,
+                'message': f"Rejected hypothesis: {hypothesis.get('description', 'Unknown')}"
+            })
         
         # Add to diagnostic path
         st.session_state.diagnostic_path.append({
