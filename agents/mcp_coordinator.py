@@ -853,13 +853,20 @@ CLUSTER STATE:
 INSTRUCTIONS:
 Even if the user's question is vague or general, please:
 1. Identify potential issues based on the cluster state information provided above
-2. Provide a detailed and helpful response addressing the most likely problems
+2. Provide a SHORT, CONCISE response addressing the most likely problems
 3. If the question is general (like "what's wrong with my cluster?"), focus on the problematic pods and events
 4. Suggest 3-5 specific next actions the user could take to investigate or resolve identified issues
 5. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
 
+IMPORTANT FORMAT REQUIREMENTS:
+- Make your responses SHORT and CONCISE - no more than 4-5 sentences total
+- Use bullet points and numbered lists instead of paragraphs
+- Avoid detailed explanations unless specifically requested
+- Use technical terms precisely but briefly
+- Focus on actionable information
+
 Return your response in JSON format with these fields:
-- response: Your detailed answer to the user's query, highlighting any identified issues
+- response: Your SHORT, BULLETED answer to the user's query, highlighting identified issues
 - summary: A brief 1-2 sentence summary of the issues found or situation
 - suggestions: An array of suggestion objects, each with:
   - text: The text to show the user for this suggestion (keep brief but descriptive)
