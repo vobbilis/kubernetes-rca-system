@@ -451,7 +451,7 @@ def render_chatbot_interface(
             chat_html += '</div>'
             
             # Display the chat using HTML, but don't show the raw markup to the user
-            chat_container.components.html(chat_html, height=600, scrolling=True)
+            st.components.v1.html(chat_html, height=600, scrolling=True)
             
             # Auto-scroll to the bottom using JavaScript
             st.markdown("""
