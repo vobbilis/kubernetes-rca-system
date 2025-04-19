@@ -371,17 +371,41 @@ class MCPCoordinator:
         
         # Update analysis status
         analysis["status"] = "running_resource_analysis"
+
+        # Get Kubernetes events before analyzing resources
+        try:
+            events = self.k8s_client.get_events(namespace)
+        except Exception as e:
+            print(f"Error getting events: {e}")
+            events = []
         
         # Run the resource analyzer
         try:
-            resource_analysis = self.resource_analyzer.analyze_namespace_resources(namespace)
+            # Make sure resource analyzer is initialized
+            from agents.resource_analyzer import ResourceAnalyzer
+            if not hasattr(self, 'resource_analyzer') or self.resource_analyzer is None:
+                self.resource_analyzer = ResourceAnalyzer(self.k8s_client)
             
             # Reset findings and reasoning steps to ensure we get fresh results
             self.resource_analyzer.findings = []
             self.resource_analyzer.reasoning_steps = []
             
+            # Run analysis
+            resource_analysis = self.resource_analyzer.analyze_namespace_resources(namespace)
+            
+            # Include events in the results
+            resource_analysis['events'] = events
+            
+            # Explicitly include the findings in the results for easier access
+            if 'findings' not in resource_analysis and self.resource_analyzer.findings:
+                resource_analysis['findings'] = self.resource_analyzer.findings
+            
             # Store results
             analysis["results"]["resources"] = resource_analysis
+            
+            # Debug info
+            print(f"Resource analysis found {len(resource_analysis.get('findings', []))} findings")
+            print(f"Events captured: {len(events)}")
             
             return resource_analysis
         except Exception as e:
@@ -391,9 +415,14 @@ class MCPCoordinator:
                 "reasoning_steps": [{
                     "observation": "Error during resource analysis",
                     "conclusion": str(e)
-                }]
+                }],
+                "events": events  # Include any events we found
             }
+            
+            # Store error results
             analysis["results"]["resources"] = error_result
+            analysis["status"] = "error"
+            
             return error_result
     
     def _run_comprehensive_analysis(self, analysis_id: str, namespace: str, context: Optional[str] = None, **kwargs) -> Dict[str, Any]:
