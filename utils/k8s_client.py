@@ -321,13 +321,13 @@ class K8sClient:
             print(f"Failed to get pod metrics: {e}")
             return {}
     
-    def get_pod_logs(self, pod_name, namespace, container_name=None, tail_lines=100):
+    def get_pod_logs(self, namespace, pod_name, container_name=None, tail_lines=100):
         """
         Get logs for a pod.
         
         Args:
-            pod_name: Name of the pod
             namespace: Namespace of the pod
+            pod_name: Name of the pod
             container_name: Name of the container (optional)
             tail_lines: Number of lines to return from the end of the logs
             

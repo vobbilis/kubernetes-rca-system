@@ -1,0 +1,32 @@
+{
+  "timestamp": "20250419_190111",
+  "component": "Pod/liveness-probe-fail",
+  "finding": {
+    "component": "Pod/liveness-probe-fail",
+    "issue": "Event BackOff: Back-off restarting failed container liveness-prob...",
+    "severity": "critical",
+    "evidence": "Event: BackOff\nMessage: Back-off restarting failed container liveness-probe in pod liveness-probe-fail_default(76b89a7f-1ca9-479e-a963-6a4939e493a9)"
+  },
+  "hypothesis": {
+    "description": "Network connectivity issues preventing probe from reaching application",
+    "confidence": 0.4,
+    "investigation_steps": [
+      "Verify network policies allow probe traffic",
+      "Check DNS resolution within pod",
+      "Test network connectivity from node to pod",
+      "Review CNI plugin logs"
+    ],
+    "related_components": [
+      "CNI plugin",
+      "kube-proxy",
+      "CoreDNS",
+      "Network policies"
+    ]
+  },
+  "evidence": {
+    "pod_details_error": "'K8sClient' object has no attribute 'get_pod'",
+    "pod_logs": "",
+    "pod_events_error": "K8sClient.get_events() got an unexpected keyword argument 'field_selector'",
+    "cluster_info_error": "'K8sClient' object has no attribute 'get_nodes'"
+  }
+}
