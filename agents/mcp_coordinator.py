@@ -772,44 +772,117 @@ identified root causes, and recommended actions to resolve the issues.
         Returns:
             dict: Response data including text response and suggested actions
         """
-        # Create a prompt for the LLM to understand the query
+        # First, perform a quick analysis to gather current cluster state
+        pod_statuses = {}
+        problematic_pods = []
+        recent_events = []
+        
+        try:
+            # Get pods in the namespace and check their status
+            pods = self.k8s_client.get_pods(namespace)
+            if pods:
+                for pod in pods:
+                    pod_name = pod['metadata']['name']
+                    pod_phase = pod['status'].get('phase', 'Unknown')
+                    pod_statuses[pod_name] = pod_phase
+                    
+                    # Identify problematic pods
+                    if pod_phase != 'Running' and pod_phase != 'Succeeded':
+                        container_statuses = []
+                        for container in pod['status'].get('containerStatuses', []):
+                            if not container.get('ready', False):
+                                reason = "Unknown"
+                                if 'state' in container:
+                                    state_types = container['state'].keys()
+                                    if 'waiting' in state_types:
+                                        reason = container['state']['waiting'].get('reason', reason)
+                                    elif 'terminated' in state_types:
+                                        reason = container['state']['terminated'].get('reason', reason)
+                                container_statuses.append({
+                                    'name': container.get('name', 'unknown'),
+                                    'reason': reason
+                                })
+                        
+                        problematic_pods.append({
+                            'name': pod_name,
+                            'phase': pod_phase,
+                            'containers': container_statuses
+                        })
+            
+            # Get recent events
+            events = self.k8s_client.get_events(namespace, field_selector="type!=Normal")
+            if events:
+                for event in events[:5]:  # Get the 5 most recent events
+                    recent_events.append({
+                        'reason': event.get('reason', 'Unknown'),
+                        'message': event.get('message', 'No message'),
+                        'involved_object': event.get('involvedObject', {}).get('name', 'Unknown')
+                    })
+        except Exception as e:
+            pass  # Continue even if there's an error in gathering information
+        
+        # Create a prompt for the LLM with enhanced context
         prompt = f"""
-You are an AI assistant specialized in Kubernetes troubleshooting. 
+You are an AI assistant specialized in Kubernetes troubleshooting and root cause analysis. 
 The user is asking about their Kubernetes cluster, specifically in the namespace '{namespace}'.
 
 User query: {query}
 
-Based on this query, please:
-1. Provide a helpful response addressing the query
-2. Suggest 3-4 specific next actions the user could take to investigate or resolve their issue
-3. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
+I've already gathered the following information about the cluster to help you respond intelligently:
+
+CLUSTER STATE:
+- Total pods in namespace: {len(pod_statuses)}
+- Problematic pods (not in 'Running' state): {len(problematic_pods)}
+"""
+
+        # Add problematic pod details if any
+        if problematic_pods:
+            prompt += "\nPROBLEMATIC PODS DETAILS:\n"
+            for i, pod in enumerate(problematic_pods, 1):
+                prompt += f"{i}. Pod '{pod['name']}' in state '{pod['phase']}'\n"
+                for container in pod['containers']:
+                    prompt += f"   - Container '{container['name']}': {container['reason']}\n"
+        
+        # Add recent events if any
+        if recent_events:
+            prompt += "\nRECENT EVENTS:\n"
+            for i, event in enumerate(recent_events, 1):
+                prompt += f"{i}. {event['reason']} on {event['involved_object']}: {event['message']}\n"
+        
+        prompt += """
+INSTRUCTIONS:
+Even if the user's question is vague or general, please:
+1. Identify potential issues based on the cluster state information provided above
+2. Provide a detailed and helpful response addressing the most likely problems
+3. If the question is general (like "what's wrong with my cluster?"), focus on the problematic pods and events
+4. Suggest 3-5 specific next actions the user could take to investigate or resolve identified issues
+5. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
 
 Return your response in JSON format with these fields:
-- response: Your answer to the user's query
-- summary: A brief 1-2 sentence summary of the issue or situation
+- response: Your detailed answer to the user's query, highlighting any identified issues
+- summary: A brief 1-2 sentence summary of the issues found or situation
 - suggestions: An array of suggestion objects, each with:
-  - text: The text to show the user for this suggestion
+  - text: The text to show the user for this suggestion (keep brief but descriptive)
   - action: An object with:
     - type: The action type (run_agent, check_resource, check_logs, check_events, query)
     - [additional fields based on type]
 
 Examples of action objects:
-- For run_agent: {{"type": "run_agent", "agent_type": "logs"}}
-- For check_resource: {{"type": "check_resource", "resource_type": "Pod", "resource_name": "frontend-pod-123"}}
-- For check_logs: {{"type": "check_logs", "pod_name": "frontend-pod-123", "container_name": "main"}}
-- For check_events: {{"type": "check_events", "field_selector": "involvedObject.name=frontend-pod-123"}}
-- For query: {{"type": "query", "query": "What's causing my pod to crash?"}}
+- For run_agent: {"type": "run_agent", "agent_type": "logs"}
+- For check_resource: {"type": "check_resource", "resource_type": "Pod", "resource_name": "problematic-pod-name"}
+- For check_logs: {"type": "check_logs", "pod_name": "problematic-pod-name", "container_name": "main"}
+- For check_events: {"type": "check_events", "field_selector": "involvedObject.name=problematic-pod-name"}
+- For query: {"type": "query", "query": "Tell me more about CrashLoopBackOff errors"}
+
+FOR GENERAL QUESTIONS:
+If the user asked a general question like "what's wrong" or "help me troubleshoot", don't say "I don't understand" - instead identify actual issues from the cluster state and provide specific insight and recommendations.
 """
 
-        # Get cluster information for context
-        try:
-            # Get some basic resource information for context
-            pods = self.k8s_client.get_pods(namespace)
-            if pods:
-                pod_info = "\nPods in namespace:\n" + "\n".join([f"- {pod['metadata']['name']}: {pod['status'].get('phase', 'Unknown')}" for pod in pods[:10]])
-                prompt += pod_info
-        except Exception as e:
-            prompt += f"\nNote: Could not retrieve pod information: {e}"
+        # Add full pod listing as additional context
+        if pod_statuses:
+            prompt += "\nALL PODS IN NAMESPACE:\n"
+            for name, status in pod_statuses.items():
+                prompt += f"- {name}: {status}\n"
         
         # Get the response from the LLM
         try:
@@ -819,62 +892,155 @@ Examples of action objects:
             if not isinstance(response_json, dict):
                 response_json = {}
                 
-            if "response" not in response_json:
-                response_json["response"] = "I couldn't understand your query. Could you please be more specific about what you're looking for in your Kubernetes cluster?"
+            if "response" not in response_json or not response_json["response"]:
+                # Generate a more helpful default response based on cluster state
+                default_response = "Based on my analysis of your Kubernetes cluster"
+                if problematic_pods:
+                    pod_names = ", ".join([pod["name"] for pod in problematic_pods[:3]])
+                    if len(problematic_pods) > 3:
+                        pod_names += f", and {len(problematic_pods) - 3} more"
+                    default_response += f", I've detected {len(problematic_pods)} problematic pods including {pod_names}."
+                else:
+                    default_response += ", all pods appear to be running normally."
                 
-            if "suggestions" not in response_json:
-                response_json["suggestions"] = [
-                    {
-                        "text": "Run a comprehensive analysis of your namespace",
-                        "action": {
-                            "type": "run_agent",
-                            "agent_type": "comprehensive"
-                        }
-                    },
-                    {
-                        "text": "Check for problematic pods",
-                        "action": {
-                            "type": "run_agent",
-                            "agent_type": "resources"
-                        }
-                    },
-                    {
-                        "text": "View recent events",
+                if recent_events:
+                    default_response += f" There are also {len(recent_events)} recent warning/error events that may indicate issues."
+                
+                default_response += " I recommend checking the suggested actions below to investigate further."
+                response_json["response"] = default_response
+                
+            if "summary" not in response_json or not response_json["summary"]:
+                # Generate a default summary based on cluster state
+                if problematic_pods:
+                    response_json["summary"] = f"Investigation of {len(problematic_pods)} problematic pods in namespace '{namespace}'."
+                else:
+                    response_json["summary"] = f"Health check and status verification of cluster resources in namespace '{namespace}'."
+                
+            if "suggestions" not in response_json or not response_json["suggestions"]:
+                # Generate smarter default suggestions based on cluster state
+                suggestions = []
+                
+                # Always include comprehensive analysis
+                suggestions.append({
+                    "text": "Run a comprehensive analysis",
+                    "action": {
+                        "type": "run_agent",
+                        "agent_type": "comprehensive"
+                    }
+                })
+                
+                # If there are problematic pods, suggest checking them specifically
+                if problematic_pods:
+                    for pod in problematic_pods[:2]:  # Limit to first 2 pods to avoid too many suggestions
+                        pod_name = pod["name"]
+                        suggestions.append({
+                            "text": f"Check pod {pod_name}",
+                            "action": {
+                                "type": "check_resource",
+                                "resource_type": "Pod",
+                                "resource_name": pod_name
+                            }
+                        })
+                        
+                        # Also suggest checking logs for this pod
+                        suggestions.append({
+                            "text": f"View logs for {pod_name}",
+                            "action": {
+                                "type": "check_logs",
+                                "pod_name": pod_name,
+                                "container_name": pod["containers"][0]["name"] if pod["containers"] else None
+                            }
+                        })
+                
+                # Add events check if there are recent events
+                if recent_events:
+                    suggestions.append({
+                        "text": "Check recent warning events",
                         "action": {
                             "type": "check_events",
                             "field_selector": "type!=Normal"
                         }
-                    }
-                ]
+                    })
+                
+                # If we didn't add any specific suggestions, add the resource analyzer
+                if len(suggestions) <= 1:
+                    suggestions.append({
+                        "text": "Check resource health",
+                        "action": {
+                            "type": "run_agent",
+                            "agent_type": "resources"
+                        }
+                    })
+                
+                response_json["suggestions"] = suggestions
             
             return response_json
         except Exception as e:
-            # Provide a fallback response
-            return {
-                "response": f"I encountered an error processing your query: {str(e)}. Let me suggest some general actions to help troubleshoot your Kubernetes cluster.",
-                "suggestions": [
-                    {
-                        "text": "Run a comprehensive analysis of your namespace",
+            # Provide a smarter fallback response based on the cluster state
+            default_suggestions = []
+            
+            # Base suggestion on problematic pods if any
+            if problematic_pods:
+                response_text = f"I found {len(problematic_pods)} problematic pods in your cluster"
+                
+                # Add specific pod suggestions
+                for pod in problematic_pods[:2]:  # Limit to first 2 pods
+                    pod_name = pod["name"]
+                    default_suggestions.append({
+                        "text": f"Check pod {pod_name}",
                         "action": {
-                            "type": "run_agent",
-                            "agent_type": "comprehensive"
+                            "type": "check_resource",
+                            "resource_type": "Pod",
+                            "resource_name": pod_name
                         }
-                    },
-                    {
-                        "text": "Check for problematic pods",
+                    })
+                    
+                    # Get the main container name if available
+                    container_name = None
+                    if pod["containers"]:
+                        container_name = pod["containers"][0]["name"]
+                    
+                    default_suggestions.append({
+                        "text": f"View logs for {pod_name}",
                         "action": {
-                            "type": "run_agent",
-                            "agent_type": "resources"
+                            "type": "check_logs",
+                            "pod_name": pod_name,
+                            "container_name": container_name
                         }
-                    },
-                    {
-                        "text": "View recent events",
-                        "action": {
-                            "type": "check_events",
-                            "field_selector": "type!=Normal"
-                        }
+                    })
+            else:
+                response_text = "I couldn't process your question in detail, but I've gathered some information about your cluster"
+                
+                # Add general suggestions
+                default_suggestions.append({
+                    "text": "Run a comprehensive analysis",
+                    "action": {
+                        "type": "run_agent",
+                        "agent_type": "comprehensive"
                     }
-                ]
+                })
+                
+                default_suggestions.append({
+                    "text": "Check resource health",
+                    "action": {
+                        "type": "run_agent",
+                        "agent_type": "resources"
+                    }
+                })
+            
+            # Always add events check as it's generally useful
+            default_suggestions.append({
+                "text": "View recent events",
+                "action": {
+                    "type": "check_events",
+                    "field_selector": "type!=Normal"
+                }
+            })
+            
+            return {
+                "response": f"{response_text}. {str(e)}. Let me suggest some specific actions to help troubleshoot your Kubernetes cluster.",
+                "summary": "Automated analysis of cluster state and potential issues",
+                "suggestions": default_suggestions
             }
     
     def update_suggestions_after_action(self, previous_suggestions: List[Dict[str, Any]], 

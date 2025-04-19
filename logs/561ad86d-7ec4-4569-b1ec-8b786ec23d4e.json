@@ -4,7 +4,7 @@
   "namespace": "default",
   "context": "",
   "created_at": "20250419_203658",
-  "updated_at": "20250419_203829",
+  "updated_at": "20250419_204700",
   "summary": "",
   "status": "in_progress",
   "conversation": [
@@ -27,6 +27,16 @@
       "role": "assistant",
       "content": "The Kubernetes cluster analysis revealed critical operational issues in the default namespace, with 24 pods experiencing various problems including crashes, scheduling failures, and resource constraints. The most severe issues include storage infrastructure problems (missing storage class and PVC failures), multiple failing jobs with consistent exit code 1, and resource management issues leading to OOM kills and pod evictions. Several pods are in CrashLoopBackOff state with high restart counts (160+ restarts), while others are failing due to missing ConfigMaps, failed image pulls, and probe failures, indicating widespread configuration and application stability problems.",
       "timestamp": "20250419_203829"
+    },
+    {
+      "role": "user",
+      "content": "How is cluster doing",
+      "timestamp": "20250419_204659"
+    },
+    {
+      "role": "assistant",
+      "content": "I couldn't understand your query. Could you please be more specific about what you're looking for in your Kubernetes cluster?",
+      "timestamp": "20250419_204700"
     }
   ],
   "evidence": {},
