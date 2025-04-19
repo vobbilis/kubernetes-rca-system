@@ -1,4 +1,9 @@
 import streamlit as st
+from utils.helper import setup_page
+
+# Setup the page configuration must be the first Streamlit command
+setup_page()
+
 import os
 import yaml
 import time
@@ -7,10 +12,17 @@ from components.visualization import render_visualization
 from components.report import render_report
 from agents.mcp_coordinator import MCPCoordinator
 from utils.k8s_client import K8sClient
-from utils.helper import setup_page
+from utils.mock_k8s_client import MockK8sClient
 
-# Initialize the Kubernetes client
-k8s_client = K8sClient()
+# Try to initialize the real Kubernetes client
+real_k8s_client = K8sClient()
+
+# If it's not connected, use the mock client instead
+if not real_k8s_client.is_connected():
+    st.sidebar.warning("⚠️ Using mock Kubernetes data for testing")
+    k8s_client = MockK8sClient()
+else:
+    k8s_client = real_k8s_client
 
 # Initialize environment
 llm_provider = os.environ.get("LLM_PROVIDER", "openai").lower()
@@ -20,9 +32,6 @@ if llm_provider not in ["openai", "anthropic"]:
 
 # Initialize the MCP coordinator
 coordinator = MCPCoordinator(k8s_client, provider=llm_provider)
-
-# Setup the page configuration
-setup_page()
 
 # Main application
 def main():
@@ -41,7 +50,26 @@ def main():
     selected_context, selected_namespace, analysis_type, submitted, problem_description = render_sidebar(k8s_client)
     
     # Main content area
-    if not k8s_client.is_connected():
+    if isinstance(k8s_client, MockK8sClient):
+        st.info("⚠️ Using mock Kubernetes data for testing and demonstration purposes.")
+        st.write("The analysis will be performed on a simulated Kubernetes cluster with deliberately problematic microservices.")
+        with st.expander("Mock Cluster Description"):
+            st.markdown("""
+            ## Mock Cluster Description
+            
+            This mock cluster includes the following microservices in the `test-microservices` namespace:
+            
+            1. **Frontend (nginx)** - Functioning normally
+            2. **Backend** - High CPU usage issue (90% utilization)
+            3. **Database** - Frequent restart issue (CrashLoopBackOff)
+            4. **API Gateway** - Missing environment variable issue (Failed state)
+            5. **Resource Service** - High memory usage issue (89.84% utilization)
+            
+            Additionally, a network policy is incorrectly blocking traffic to the backend service.
+            
+            These issues are deliberately injected to demonstrate the root cause analysis capabilities of the system.
+            """)
+    elif not k8s_client.is_connected():
         st.warning("Not connected to any Kubernetes cluster. Please configure your kubeconfig or connect to a cluster.")
         st.info("This application requires a Kubernetes cluster connection. You have a few options:")
         

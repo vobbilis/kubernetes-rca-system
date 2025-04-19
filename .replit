@@ -2,7 +2,7 @@ modules = ["python-3.11"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["glibcLocales", "libyaml", "kind", "kubectl"]
+packages = ["glibcLocales", "kind", "kubectl", "libyaml"]
 
 [deployment]
 deploymentTarget = "autoscale"
