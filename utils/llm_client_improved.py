@@ -55,6 +55,7 @@ class LLMClient:
             # the newest Anthropic model is "claude-3-5-sonnet-20241022" which was released October 22, 2024
             # do not change this unless explicitly requested by the user
             self.default_model = "claude-3-5-sonnet-20241022"
+            self.default_claude_model = "claude-3-5-sonnet-20241022"
         
         else:
             logger.error(f"Unknown provider: {provider}")
