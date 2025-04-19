@@ -56,6 +56,136 @@ class MCPCoordinator:
         # Store analysis sessions
         self.analyses = {}
     
+    def _format_structured_response(self, problematic_pods, pod_statuses, recent_events, namespace):
+        """
+        Create a well-structured response in JSON format with precise counts and categorization.
+        
+        Args:
+            problematic_pods: List of problematic pod objects
+            pod_statuses: Dictionary of pod statuses
+            recent_events: List of recent events
+            namespace: Namespace being analyzed
+            
+        Returns:
+            Dict with structured response data
+        """
+        # Prepare the structured response
+        total_pods = len(pod_statuses) if pod_statuses else 0
+        
+        # Create a one-line summary with precise metrics
+        summary = f"{len(problematic_pods)} of {total_pods} pods experiencing issues in namespace '{namespace}'"
+        
+        # Count pods by status for more precise reporting
+        status_counts = {}
+        restart_counts = {}
+        exit_code_counts = {}
+        
+        # Count by status
+        for pod in problematic_pods:
+            # Track main status
+            status = pod.get("status", "Unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+            
+            # Track containers with restart counts
+            for container in pod.get("containers", []):
+                restart_count = container.get("restartCount", 0)
+                if restart_count > 0:
+                    restart_counts[pod.get("name")] = restart_counts.get(pod.get("name"), 0) + restart_count
+            
+            # Track exit codes
+            for container in pod.get("containers", []):
+                if container.get("state") and container["state"].get("terminated"):
+                    exit_code = container["state"]["terminated"].get("exitCode")
+                    if exit_code is not None:
+                        exit_code_counts[exit_code] = exit_code_counts.get(exit_code, 0) + 1
+        
+        # Count events by type
+        event_counts = {}
+        for event in recent_events:
+            reason = event.get("reason", "Unknown")
+            event_counts[reason] = event_counts.get(reason, 0) + 1
+        
+        # Create structured response points
+        points = []
+        
+        # Add status breakdown
+        if status_counts:
+            status_text = ", ".join([f"{count} {status}" for status, count in status_counts.items()])
+            points.append(f"Pod status breakdown: {status_text}")
+        
+        # Add restart count information
+        if restart_counts:
+            # Sort by highest restart count
+            sorted_restarts = sorted(restart_counts.items(), key=lambda x: x[1], reverse=True)
+            restart_text = ", ".join([f"{pod}: {count}" for pod, count in sorted_restarts[:3]])
+            if len(sorted_restarts) > 3:
+                restart_text += f" and {len(sorted_restarts) - 3} more pods"
+            points.append(f"Pod restart counts: {restart_text}")
+        
+        # Add exit code information
+        if exit_code_counts:
+            exit_code_text = ", ".join([f"code {code}: {count} occurrences" for code, count in exit_code_counts.items()])
+            points.append(f"Container exit codes: {exit_code_text}")
+        
+        # Add event information
+        if event_counts:
+            event_text = ", ".join([f"{reason}: {count}" for reason, count in event_counts.items()])
+            points.append(f"Recent events by type: {event_text}")
+        
+        # Create structured sections for the response
+        sections = []
+        
+        # Section for pods with status issues
+        if status_counts:
+            pod_bullets = []
+            for status, count in status_counts.items():
+                matching_pods = [p.get("name") for p in problematic_pods if p.get("status") == status]
+                matching_pods_str = ", ".join(matching_pods[:3])
+                if len(matching_pods) > 3:
+                    matching_pods_str += f" and {len(matching_pods) - 3} more"
+                pod_bullets.append(f"{count} pods in {status} state: {matching_pods_str}")
+            
+            sections.append({
+                "section_title": "Pod Status Issues",
+                "bullets": pod_bullets
+            })
+        
+        # Section for restart issues
+        if restart_counts:
+            restart_bullets = []
+            # Get the top restarting pods
+            sorted_restarts = sorted(restart_counts.items(), key=lambda x: x[1], reverse=True)
+            for pod_name, count in sorted_restarts[:5]:  # Limit to top 5
+                restart_bullets.append(f"{pod_name}: {count} restarts")
+            
+            sections.append({
+                "section_title": "Container Restart Issues",
+                "bullets": restart_bullets
+            })
+        
+        # Section for events
+        if event_counts:
+            event_bullets = []
+            for event in recent_events[:5]:  # Limit to 5 most recent events
+                reason = event.get("reason", "Unknown")
+                message = event.get("message", "No message")
+                object_name = event.get("involved_object", "unknown")
+                event_bullets.append(f"{reason} on {object_name}: {message}")
+            
+            sections.append({
+                "section_title": "Recent Events",
+                "bullets": event_bullets
+            })
+        
+        # Create the complete structured response
+        return {
+            "response_data": {
+                "points": points,
+                "sections": sections
+            },
+            "summary": summary
+        }
+    
     def init_analysis(self, config: Dict[str, Any]) -> str:
         """
         Initialize a new analysis session.
@@ -864,20 +994,22 @@ CLUSTER STATE:
         prompt += """
 INSTRUCTIONS:
 Even if the user's question is vague or general, please:
-1. Identify potential issues based on the cluster state information provided above
-2. Provide a SHORT, CONCISE response addressing the most likely problems
-3. If the question is general (like "what's wrong with my cluster?"), focus on the problematic pods and events
-4. Suggest 3-5 specific next actions the user could take to investigate or resolve identified issues
-5. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
+1. Identify specific issues based on the cluster state information provided above
+2. Provide a ONE-LINE summary of the overall state
+3. List all issues with EXACT counts and specific error states, NEVER using qualifiers like "some" or "several"
+4. For each problematic resource, specify the exact count and specific error state (e.g., "3 of 10 pods in CrashLoopBackOff")
+5. Suggest 3-5 specific next actions the user could take to investigate or resolve identified issues
+6. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
 
 IMPORTANT FORMAT REQUIREMENTS:
-- ALWAYS format your entire response as a bulleted list - do not use paragraphs
-- Start each point with a bullet (•) or dash (-) 
-- Make your responses SHORT and CONCISE - no more than 4-5 bullet points total
-- For complex issues, use nested bullets with indentation
-- Avoid detailed explanations unless specifically requested
-- Use technical terms precisely but briefly
-- Focus on actionable information
+- Create a one-line summary that includes the total number of resources and problems
+  (e.g., "12 of 24 pods experiencing issues in the default namespace")
+- Use a precise numbered/bulleted list for EACH issue type with exact counts and error states
+- Make each point specific and data-driven (e.g., "5 pods with CrashLoopBackOff (245+ restarts)" NOT "several pods crashing")
+- Include exit codes, event counts, or other specific metrics when available
+- Keep technical terms precise and include the exact error messages
+- Never use vague quantifiers like "several", "multiple", "some" - always provide exact numbers
+- Format all response points as a professional monitoring output focused on precision and clarity
 
 Return your response in JSON format with these fields:
 - response_data: An object containing structured response data with:
@@ -936,11 +1068,21 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
                 response_json["response"] = default_response
                 
             if "summary" not in response_json or not response_json["summary"]:
-                # Generate a default summary based on cluster state
+                # Generate a more precise default summary based on cluster state with specific counts
                 if problematic_pods:
-                    response_json["summary"] = f"Investigation of {len(problematic_pods)} problematic pods in namespace '{namespace}'."
+                    # Count pods by status for more precision
+                    status_counts = {}
+                    total_pods = len(pod_statuses) if pod_statuses else 0
+                    for pod in problematic_pods:
+                        status = pod.get("status", "Unknown")
+                        status_counts[status] = status_counts.get(status, 0) + 1
+                    
+                    # Create a specific summary with exact counts
+                    status_summary = ", ".join([f"{count} {status}" for status, count in status_counts.items()])
+                    response_json["summary"] = f"{len(problematic_pods)} of {total_pods} pods experiencing issues ({status_summary}) in namespace '{namespace}'."
                 else:
-                    response_json["summary"] = f"Health check and status verification of cluster resources in namespace '{namespace}'."
+                    total_resources = len(pod_statuses) if pod_statuses else 0
+                    response_json["summary"] = f"All {total_resources} pods running normally in namespace '{namespace}'."
                 
             if "suggestions" not in response_json or not response_json["suggestions"]:
                 # Generate smarter default suggestions based on cluster state
@@ -1005,15 +1147,34 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
             # Provide a smarter fallback response based on the cluster state
             default_suggestions = []
             
-            # Base suggestion on problematic pods if any
+            # Base suggestion on problematic pods if any with specific counts
             if problematic_pods:
-                response_text = f"I found {len(problematic_pods)} problematic pods in your cluster"
+                # Count pods by status for precision
+                status_counts = {}
+                total_pods = len(pod_statuses) if pod_statuses else 0
                 
-                # Add specific pod suggestions
-                for pod in problematic_pods[:2]:  # Limit to first 2 pods
+                for pod in problematic_pods:
+                    status = pod.get("status", "Unknown")
+                    status_counts[status] = status_counts.get(status, 0) + 1
+                
+                # Create a specific response with exact counts
+                status_details = ", ".join([f"{count} {status}" for status, count in status_counts.items()])
+                response_text = f"I found {len(problematic_pods)} of {total_pods} pods with issues: {status_details}"
+                
+                # Add specific pod suggestions focusing on the most problematic ones first
+                # Sort pods by severity (restart count, etc.)
+                sorted_pods = sorted(problematic_pods[:4], 
+                                    key=lambda p: sum([c.get("restartCount", 0) for c in p.get("containers", [])]), 
+                                    reverse=True)
+                
+                for pod in sorted_pods[:2]:  # Limit to first 2 most problematic pods
                     pod_name = pod["name"]
+                    # Add restart count if available
+                    restart_count = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                    restart_text = f" ({restart_count} restarts)" if restart_count > 0 else ""
+                    
                     default_suggestions.append({
-                        "text": f"Check pod {pod_name}",
+                        "text": f"Check pod {pod_name}{restart_text}",
                         "action": {
                             "type": "check_resource",
                             "resource_type": "Pod",
