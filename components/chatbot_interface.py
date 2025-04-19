@@ -133,24 +133,13 @@ def render_chatbot_interface(
     # Page title
     st.title("Kubernetes Root Cause Analysis")
     
-    # Add debug info about the investigation
-    if investigation_id:
-        investigation = None
-        if db_handler:
-            investigation = db_handler.get_investigation(investigation_id)
-            print(f"DEBUG [chatbot_interface.py]: Got investigation from db_handler: {investigation is not None}")
-        
-        with st.expander("Investigation Info", expanded=True):
-            st.write(f"Investigation ID: {investigation_id}")
-            st.write(f"Investigation exists in DB: {investigation is not None}")
-            if investigation:
-                st.write(f"Title: {investigation.get('title')}")
-                st.write(f"Namespace: {investigation.get('namespace')}")
-                st.write(f"Created at: {investigation.get('created_at')}")
-                st.write(f"Status: {investigation.get('status')}")
-                st.write(f"Message count: {len(investigation.get('conversation', []))}")
-            else:
-                st.error("Investigation not found in database. Check the logs for details.")
+    # Initialize investigation
+    investigation = None
+    
+    # Fetch investigation details if we have an ID
+    if investigation_id and db_handler:
+        investigation = db_handler.get_investigation(investigation_id)
+        print(f"DEBUG [chatbot_interface.py]: Got investigation from db_handler: {investigation is not None}")
     
     # Load chat history if this is a continuing investigation
     if investigation_id and db_handler:
@@ -268,22 +257,23 @@ def render_chatbot_interface(
             # Create tooltip message
             tooltip_msg = "Investigation Details"
             
-            if investigation_id:
+            # Safely add investigation ID if available
+            if investigation_id and isinstance(investigation_id, str):
                 # Truncate ID if it's too long
                 short_id = investigation_id[:8] + "..." if len(investigation_id) > 8 else investigation_id
                 tooltip_msg = f"ID: {short_id}\nSource: {investigation_source}"
                 
                 # Add additional details if available
-                if isinstance(investigation, dict):
-                    if 'title' in investigation:
+                if investigation and isinstance(investigation, dict):
+                    if 'title' in investigation and investigation['title']:
                         tooltip_msg += f"\nTitle: {investigation['title']}"
                     if 'summary' in investigation and investigation['summary']:
                         # Truncate summary if too long
-                        summary = investigation['summary']
+                        summary = str(investigation['summary'])
                         if len(summary) > 100:
                             summary = summary[:97] + "..."
                         tooltip_msg += f"\nDescription: {summary}"
-                    if 'created_at' in investigation:
+                    if 'created_at' in investigation and investigation['created_at']:
                         tooltip_msg += f"\nCreated: {investigation['created_at']}"
             
             # Use Streamlit's help to create the tooltip
