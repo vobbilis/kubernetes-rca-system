@@ -42,6 +42,9 @@ class DBHandler:
         investigation_id = str(uuid.uuid4())
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         
+        print(f"DEBUG: Creating investigation with title: {title}, namespace: {namespace}")
+        print(f"DEBUG: Generated investigation ID: {investigation_id}")
+        
         investigation_data = {
             "id": investigation_id,
             "title": title,
@@ -58,8 +61,13 @@ class DBHandler:
         }
         
         # Save the investigation
-        self._save_investigation(investigation_data)
+        success = self._save_investigation(investigation_data)
         
+        if success:
+            print(f"DEBUG: Successfully saved investigation {investigation_id}")
+        else:
+            print(f"DEBUG: Failed to save investigation {investigation_id}")
+            
         return investigation_id
     
     def update_investigation(self, investigation_id: str, 
@@ -348,14 +356,29 @@ class DBHandler:
         """
         investigation_id = investigation.get("id")
         if not investigation_id:
+            print(f"ERROR: Cannot save investigation - missing ID")
             return False
         
         file_path = os.path.join(self.base_dir, f"{investigation_id}.json")
+        print(f"DEBUG: Saving investigation to {file_path}")
         
         try:
+            # Ensure logs directory exists
+            if not os.path.exists(self.base_dir):
+                print(f"DEBUG: Creating logs directory {self.base_dir}")
+                os.makedirs(self.base_dir)
+            
             with open(file_path, 'w') as f:
                 json.dump(investigation, f, indent=2)
-            return True
+            print(f"DEBUG: Successfully wrote investigation file")
+            
+            # Verify the file was created
+            if os.path.exists(file_path):
+                print(f"DEBUG: Verified file exists: {file_path}")
+                return True
+            else:
+                print(f"ERROR: File not found after write: {file_path}")
+                return False
         except Exception as e:
-            print(f"Error saving investigation {investigation_id}: {e}")
+            print(f"ERROR: Failed to save investigation {investigation_id}: {str(e)}")
             return False
