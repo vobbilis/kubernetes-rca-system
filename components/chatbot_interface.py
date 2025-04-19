@@ -447,41 +447,54 @@ def render_chatbot_interface(
                     </div>
                     """
             
-            # Close the chat container
+            # Close the chat HTML container (no longer used)
             chat_html += '</div>'
             
-            # Display the chat using HTML with iframe to ensure proper rendering regardless of background color
-            # Escape single quotes for srcdoc attribute
-            escaped_chat_html = chat_html.replace("'", "\\'")
+            # Start a fresh conversation using Streamlit components
+            st.write("### Conversation")
             
-            # Use an iframe with full HTML document structure
-            iframe_html = f"""
-            <iframe srcdoc='
-            <html>
-                <head>
-                    <style>
-                        body {{ margin: 0; padding: 10px; font-family: Arial, sans-serif; background-color: white; }}
-                        .chat-container {{ padding: 10px; overflow-y: auto; height: 580px; }}
-                        .message-user {{ display: flex; margin-bottom: 10px; align-items: flex-start; justify-content: flex-end; }}
-                        .message-ai {{ display: flex; margin-bottom: 10px; align-items: flex-start; justify-content: flex-start; }}
-                        .message-content-user {{ background-color: #e0e7ff; padding: 12px 18px; border-radius: 18px 18px 0 18px; 
-                                              max-width: 80%; text-align: right; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #333; }}
-                        .message-content-ai {{ background-color: #f0f7ff; padding: 12px 18px; border-radius: 18px 18px 18px 0; 
-                                            max-width: 80%; box-shadow: 0 2px 4px rgba(0,0,0,0.1); color: #333; }}
-                        .message-content-system {{ background-color: #ffffcc; padding: 8px 12px; border-radius: 10px; 
-                                               font-style: italic; max-width: 70%; text-align: center; color: #555; }}
-                        .chat-timestamp {{ font-size: 0.7em; color: #777; margin-top: 5px; text-align: right; }}
-                        .ai-icon {{ width: 35px; height: 35px; margin-right: 10px; background-color: #3f51b5; border-radius: 50%; 
-                                 display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 14px; }}
-                    </style>
-                </head>
-                <body>
-                    {escaped_chat_html}
-                </body>
-            </html>
-            ' style="width: 100%; height: 600px; border: none; background-color: white;"></iframe>
-            """
-            st.markdown(iframe_html, unsafe_allow_html=True)
+            # Create a container for the messages
+            msg_container = st.container()
+            
+            # Display each message as a separate streamlit component
+            with msg_container:
+                for message in visible_messages:
+                    role = message.get('role', 'unknown')
+                    content = message.get('content', '')
+                    timestamp = message.get('timestamp', 0)
+                    
+                    # Format timestamp for display
+                    formatted_time = ""
+                    if timestamp:
+                        try:
+                            if isinstance(timestamp, (int, float)):
+                                formatted_time = time.strftime('%H:%M:%S', time.localtime(timestamp))
+                            elif isinstance(timestamp, str):
+                                formatted_time = timestamp
+                        except Exception as e:
+                            print(f"Error formatting timestamp: {e}")
+                    
+                    # Process content to escape HTML and handle newlines
+                    processed_content = content.replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+                    
+                    # Display using chat_message component
+                    if role == 'user':
+                        # Create columns for alignment (empty left, content in middle, empty right)
+                        cols = st.columns([0.2, 0.6, 0.2])
+                        with cols[1]:
+                            st.info(f"{content}\n\n*{formatted_time}*")
+                    
+                    elif role == 'assistant':
+                        # Create columns for alignment (empty left, content in middle, empty right)
+                        cols = st.columns([0.2, 0.6, 0.2])
+                        with cols[1]:
+                            st.success(f"**AI**: {content}\n\n*{formatted_time}*")
+                    
+                    elif role == 'system':
+                        # System messages are displayed as warnings
+                        cols = st.columns([0.2, 0.6, 0.2])
+                        with cols[1]:
+                            st.warning(f"{content}\n\n*{formatted_time}*")
             
             # Auto-scroll to the bottom using JavaScript
             st.markdown("""
