@@ -164,15 +164,8 @@ def main():
     print(f"DEBUG [app.py]: - submitted: {submitted}")
     print(f"DEBUG [app.py]: - session_state keys: {list(st.session_state.keys())}")
     
-    # Debugging information - make it expanded by default
-    with st.sidebar.expander("Debug Information", expanded=True):
-        st.write("Current Investigation ID:", current_investigation_id)
-        st.write("Selected Investigation:", selected_investigation)
-        st.write("View Mode:", view_mode)
-        st.write("Active Investigation:", active_investigation)
-        st.write("Chat Target ID:", chat_target_id)
-        st.write("Submitted:", submitted)
-        st.write("Session State Keys:", list(st.session_state.keys()))
+    # Remove the Debug Information expander completely
+    # We'll use tooltips in the UI instead
     
     # Determine which investigation ID to use - try all possible sources in order
     target_investigation = None
@@ -197,7 +190,7 @@ def main():
     # If we have determined a target investigation, render the chatbot
     if target_investigation:
         print(f"DEBUG [app.py]: Rendering chatbot with investigation {target_investigation} (from {source})")
-        st.success(f"Working with investigation: {target_investigation} (source: {source})")
+        # Remove success box and just log the debug info
         
         # Make sure all session state variables are consistent
         st.session_state['current_investigation_id'] = target_investigation
@@ -205,6 +198,9 @@ def main():
         st.session_state['active_investigation'] = target_investigation
         st.session_state['chat_target_id'] = target_investigation
         st.session_state['view_mode'] = 'chat'
+        
+        # Store the source for tooltip use
+        st.session_state['investigation_source'] = source
         
         render_chatbot_interface(
             coordinator=coordinator, 
@@ -215,8 +211,12 @@ def main():
     
     # If we have a selected investigation from sidebar, render that
     elif selected_investigation:
-        st.info(f"Viewing investigation: {selected_investigation}")
+        # Remove info box and just log in debug
         print(f"DEBUG: Rendering chatbot interface for investigation {selected_investigation} (from sidebar)")
+        
+        # Store the source for tooltip use
+        st.session_state['investigation_source'] = "sidebar"
+        
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
@@ -226,8 +226,12 @@ def main():
     
     # If we have a current investigation in session state, render that
     elif current_investigation_id:
-        st.success(f"Working with current investigation: {current_investigation_id}")
+        # Remove success box and just log in debug
         print(f"DEBUG: Rendering chatbot interface for investigation {current_investigation_id} (from session state)")
+        
+        # Store the source for tooltip use
+        st.session_state['investigation_source'] = "session_state"
+        
         render_chatbot_interface(
             coordinator=coordinator, 
             k8s_client=k8s_client,
@@ -237,13 +241,16 @@ def main():
     
     # If we've submitted a new investigation, create it and render the chatbot
     elif submitted:
-        st.info("New investigation submitted - checking process")
         # This is a fallback - the investigation should be created in the sidebar component
         # and should set current_investigation_id in session state
         investigation_id = st.session_state.get('current_investigation_id')
         if investigation_id:
-            st.success(f"Investigation started! ID: {investigation_id}")
+            # Remove success box and just log in debug
             print(f"DEBUG: Rendering chatbot interface for investigation {investigation_id} (from submitted)")
+            
+            # Store the source for tooltip use
+            st.session_state['investigation_source'] = "new_submission"
+            
             render_chatbot_interface(
                 coordinator=coordinator, 
                 k8s_client=k8s_client,

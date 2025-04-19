@@ -255,7 +255,26 @@ def render_chatbot_interface(
     
     # Render the chat output (conversation history) in the top container
     with chat_output_container:
-        st.subheader("Conversation")
+        # Create a row with the conversation title and info tooltip
+        col1, col2 = st.columns([10, 1])
+        
+        with col1:
+            st.subheader("Conversation")
+        
+        with col2:
+            # Show tooltip with investigation details
+            investigation_source = st.session_state.get('investigation_source', 'unknown')
+            tooltip_content = f"Investigation ID: {investigation_id}\nSource: {investigation_source}"
+            
+            if investigation:
+                if 'title' in investigation:
+                    tooltip_content += f"\nTitle: {investigation['title']}"
+                if 'summary' in investigation:
+                    tooltip_content += f"\nDescription: {investigation['summary']}"
+                if 'created_at' in investigation:
+                    tooltip_content += f"\nCreated: {investigation['created_at']}"
+            
+            st.markdown(f"<div title='{tooltip_content}'>ℹ️</div>", unsafe_allow_html=True)
         
         # Create a scrollable container for the chat messages
         chat_container = st.container()
