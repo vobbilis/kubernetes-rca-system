@@ -155,6 +155,120 @@ class LLMClient:
                 "execution_status": "error"
             }
     
+    def generate_structured_output(self, prompt: Union[str, List[Dict]], 
+                                 model: Optional[str] = None,
+                                 temperature: float = 0.2) -> Dict[str, Any]:
+        """
+        Generate structured output in JSON format from the LLM.
+        
+        Args:
+            prompt: Prompt text or list of message dicts
+            model: Model to use (optional, defaults to the provider's default model)
+            temperature: Sampling temperature (0.0 to 1.0)
+            
+        Returns:
+            dict: Parsed JSON response
+        """
+        if self.provider == "openai":
+            try:
+                # Handle different prompt types
+                if isinstance(prompt, str):
+                    messages = [{"role": "user", "content": prompt}]
+                else:
+                    messages = prompt
+                
+                response = self.openai_client.chat.completions.create(
+                    model=model or self.default_model,
+                    messages=messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"},
+                    max_tokens=2000
+                )
+                
+                content = response.choices[0].message.content
+                
+                # Parse the JSON response
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse JSON response: {content}")
+                    # Try to extract JSON from the response if it contains markdown code blocks
+                    if "```json" in content:
+                        json_content = content.split("```json")[1].split("```")[0].strip()
+                        try:
+                            return json.loads(json_content)
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse JSON from markdown: {json_content}")
+                    
+                    # Return a simplified error response
+                    return {"error": "Failed to parse structured output", "raw_response": content}
+                    
+            except Exception as e:
+                logger.error(f"Error while generating structured output with OpenAI: {e}")
+                return {"error": str(e)}
+                
+        elif self.provider == "anthropic":
+            try:
+                # Format the prompt for Claude
+                system = None
+                user_content = prompt
+                
+                if isinstance(prompt, list):
+                    # Extract system and user messages
+                    system_messages = [m for m in prompt if m.get("role") == "system"]
+                    user_messages = [m for m in prompt if m.get("role") == "user"]
+                    
+                    if system_messages:
+                        system = system_messages[0].get("content")
+                    
+                    if user_messages:
+                        user_content = user_messages[-1].get("content")
+                    else:
+                        user_content = "Analyze the given information and provide a JSON response."
+                
+                # Add JSON format instruction
+                if isinstance(user_content, str):
+                    user_content += "\n\nPlease provide your response in valid JSON format."
+                
+                response = self.anthropic_client.messages.create(
+                    model=model or self.default_claude_model,
+                    max_tokens=2000,
+                    temperature=temperature,
+                    system=system,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": user_content
+                        }
+                    ]
+                )
+                
+                content = response.content[0].text
+                
+                # Parse the JSON response
+                try:
+                    return json.loads(content)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed to parse JSON response: {content}")
+                    # Try to extract JSON from the response if it contains markdown code blocks
+                    if "```json" in content:
+                        json_content = content.split("```json")[1].split("```")[0].strip()
+                        try:
+                            return json.loads(json_content)
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse JSON from markdown: {json_content}")
+                    
+                    # Return a simplified error response
+                    return {"error": "Failed to parse structured output", "raw_response": content}
+                    
+            except Exception as e:
+                logger.error(f"Error while generating structured output with Anthropic: {e}")
+                return {"error": str(e)}
+                
+        else:
+            logger.error(f"Unsupported provider: {self.provider}")
+            return {"error": f"Unsupported provider: {self.provider}"}
+    
     def generate_completion(self, prompt: Union[str, List[Dict]], 
                            model: Optional[str] = None,
                            temperature: float = 0.2,

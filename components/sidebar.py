@@ -28,12 +28,16 @@ def render_sidebar(k8s_client):
         investigations = db_handler.list_investigations()
         
         # New Investigation button
-        new_investigation = st.button("➕ New Investigation", type="primary")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_investigation = st.button("➕ New Investigation", type="primary", key="sidebar_new_investigation")
+        
         if new_investigation:
             st.session_state['current_investigation_id'] = None
             st.session_state['new_investigation'] = True
-            # Switch to configuration tab
-            st.session_state['active_tab'] = "Configuration"
+            # We need to directly switch to the configuration view
+            # Force a rerun to refresh the UI
+            st.rerun()
             
         # List of investigations
         st.subheader("Past Investigations")
