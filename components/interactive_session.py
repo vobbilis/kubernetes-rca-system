@@ -1,5 +1,7 @@
 import streamlit as st
 import time
+import os
+import json
 from typing import Dict, List, Any, Optional
 
 def init_interactive_session():
@@ -234,6 +236,65 @@ def _render_hypothesis_generation(coordinator):
                 st.markdown("**Investigation Steps:**")
                 for j, step in enumerate(investigation_steps, 1):
                     st.markdown(f"{j}. {step}")
+            # Show evidence for this hypothesis if available
+            with st.expander("View Evidence", expanded=False):
+                # Get any gathered evidence for this hypothesis
+                evidence_files = []
+                for file in os.listdir("logs"):
+                    if file.endswith(".json"):
+                        try:
+                            with open(os.path.join("logs", file), "r") as f:
+                                log_data = json.load(f)
+                                # Check if this is related to our hypothesis
+                                log_component = log_data.get("component")
+                                log_hypothesis = log_data.get("hypothesis", {})
+                                if (log_component == component and 
+                                    log_hypothesis.get("description") == hypothesis_desc):
+                                    evidence_files.append((file, log_data))
+                        except Exception as e:
+                            st.error(f"Error reading log file {file}: {str(e)}")
+                
+                if evidence_files:
+                    st.markdown("### Evidence for this hypothesis")
+                    for file_name, log_data in evidence_files:
+                        st.markdown(f"**Log file:** {file_name}")
+                        
+                        # Show evidence from the log
+                        evidence = log_data.get("evidence", {})
+                        for evidence_type, evidence_data in evidence.items():
+                            if evidence_type.endswith("_error"):
+                                # This is an error message
+                                st.error(f"**{evidence_type}:** {evidence_data}")
+                            elif evidence_type == "pod_logs" or evidence_type == "sample_pod_logs":
+                                # Show logs in a text area
+                                st.markdown(f"**{evidence_type.replace('_', ' ').title()}**")
+                                st.text_area(f"{evidence_type}", evidence_data, height=200, key=f"{evidence_type}_{file_name}")
+                            elif evidence_type.endswith("_events"):
+                                # Show events
+                                st.markdown(f"**{evidence_type.replace('_', ' ').title()}**")
+                                try:
+                                    # Try to parse events if they're in JSON format
+                                    if isinstance(evidence_data, list):
+                                        for i, event in enumerate(evidence_data[:5]):  # Show first 5 events
+                                            reason = event.get("reason", "Unknown")
+                                            message = event.get("message", "No message")
+                                            st.markdown(f"Event {i+1}: **{reason}** - {message}")
+                                    else:
+                                        st.text_area(f"{evidence_type}", str(evidence_data), height=150, key=f"{evidence_type}_{file_name}")
+                                except:
+                                    st.text_area(f"{evidence_type}", str(evidence_data), height=150, key=f"{evidence_type}_{file_name}")
+                            else:
+                                # Default display for other evidence types
+                                st.markdown(f"**{evidence_type.replace('_', ' ').title()}**")
+                                try:
+                                    if isinstance(evidence_data, dict) or isinstance(evidence_data, list):
+                                        st.json(evidence_data)
+                                    else:
+                                        st.text_area(f"{evidence_type}", str(evidence_data), height=100, key=f"{evidence_type}_{file_name}")
+                                except:
+                                    st.text_area(f"{evidence_type}", str(evidence_data), height=100, key=f"{evidence_type}_{file_name}")
+                else:
+                    st.info("No evidence files found for this hypothesis. Evidence will be gathered during investigation.")
             
             # Button to select this hypothesis
             if st.button(f"Investigate this hypothesis", key=f"hyp_{i}"):

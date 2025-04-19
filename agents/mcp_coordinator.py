@@ -1286,6 +1286,175 @@ Output your response as a JSON object with the following structure:
                 ]
             }
     
+    def _get_evidence_for_component(self, component: str) -> Dict[str, Any]:
+        """
+        Gather evidence for a specific component.
+        
+        Args:
+            component: The Kubernetes component identifier (e.g., "Pod/nginx")
+            
+        Returns:
+            Dictionary with evidence
+        """
+        evidence = {}
+        
+        # Parse component type and name
+        try:
+            comp_type, comp_name = component.split('/', 1)
+        except Exception as e:
+            logger.error(f"Could not parse component: {component}, error: {e}")
+            return {"error": f"Could not parse component: {component}"}
+        
+        # Get namespace from current analysis or use default
+        namespace = "default"
+        for analysis_id, analysis in self.analyses.items():
+            if analysis["status"] != "failed":
+                namespace = analysis["config"].get("namespace", "default")
+                break
+        
+        # Collect evidence based on component type
+        try:
+            if comp_type.lower() == "pod":
+                # Get pod details
+                try:
+                    pod = self.k8s_client.get_pod(namespace, comp_name)
+                    evidence["pod_details"] = pod
+                except Exception as e:
+                    evidence["pod_details_error"] = str(e)
+                
+                # Get pod logs
+                try:
+                    pod_logs = self.k8s_client.get_pod_logs(namespace, comp_name, tail_lines=100)
+                    evidence["pod_logs"] = pod_logs
+                except Exception as e:
+                    evidence["pod_logs_error"] = str(e)
+                
+                # Get pod events
+                try:
+                    pod_events = self.k8s_client.get_events(namespace=namespace, field_selector=f"involvedObject.name={comp_name}")
+                    evidence["pod_events"] = pod_events
+                except Exception as e:
+                    evidence["pod_events_error"] = str(e)
+                
+            elif comp_type.lower() == "deployment":
+                # Get deployment details
+                try:
+                    deployment = self.k8s_client.get_deployment(namespace, comp_name)
+                    evidence["deployment_details"] = deployment
+                except Exception as e:
+                    evidence["deployment_details_error"] = str(e)
+                
+                # Get deployment events
+                try:
+                    deployment_events = self.k8s_client.get_events(namespace=namespace, field_selector=f"involvedObject.name={comp_name}")
+                    evidence["deployment_events"] = deployment_events
+                except Exception as e:
+                    evidence["deployment_events_error"] = str(e)
+                
+                # Get pods for this deployment
+                try:
+                    pods = self.k8s_client.get_pods(namespace)
+                    # Filter pods belonging to this deployment
+                    deployment_pods = []
+                    for pod in pods:
+                        for owner_ref in pod.get("metadata", {}).get("ownerReferences", []):
+                            if owner_ref.get("name") == comp_name:
+                                deployment_pods.append(pod)
+                    
+                    evidence["deployment_pods"] = deployment_pods
+                    
+                    # Get logs from one of the pods (if any)
+                    if deployment_pods:
+                        sample_pod = deployment_pods[0]["metadata"]["name"]
+                        pod_logs = self.k8s_client.get_pod_logs(namespace, sample_pod, tail_lines=100)
+                        evidence["sample_pod_logs"] = pod_logs
+                except Exception as e:
+                    evidence["deployment_pods_error"] = str(e)
+                
+            elif comp_type.lower() == "service":
+                # Get service details
+                try:
+                    service = self.k8s_client.get_service(namespace, comp_name)
+                    evidence["service_details"] = service
+                except Exception as e:
+                    evidence["service_details_error"] = str(e)
+                
+                # Get service events
+                try:
+                    service_events = self.k8s_client.get_events(namespace=namespace, field_selector=f"involvedObject.name={comp_name}")
+                    evidence["service_events"] = service_events
+                except Exception as e:
+                    evidence["service_events_error"] = str(e)
+                
+                # Get endpoints for this service
+                try:
+                    endpoints = self.k8s_client.get_endpoints(namespace, comp_name)
+                    evidence["service_endpoints"] = endpoints
+                except Exception as e:
+                    evidence["service_endpoints_error"] = str(e)
+            
+            # Add more component types as needed
+            elif comp_type.lower() == "persistentvolumeclaim" or comp_type.lower() == "pvc":
+                # Get PVC details
+                try:
+                    pvc = self.k8s_client.get_pvc(namespace, comp_name)
+                    evidence["pvc_details"] = pvc
+                except Exception as e:
+                    evidence["pvc_details_error"] = str(e)
+                
+                # Get PVC events
+                try:
+                    pvc_events = self.k8s_client.get_events(namespace=namespace, field_selector=f"involvedObject.name={comp_name}")
+                    evidence["pvc_events"] = pvc_events
+                except Exception as e:
+                    evidence["pvc_events_error"] = str(e)
+            
+            else:
+                # Generic resource - get basic details and events
+                try:
+                    # Use kubectl command for generic resources
+                    kubectl_result = self._run_kubectl_command(["get", comp_type.lower(), comp_name, "-n", namespace, "-o", "json"])
+                    if kubectl_result.get("success", False):
+                        try:
+                            resource_details = json.loads(kubectl_result.get("output", "{}"))
+                            evidence["resource_details"] = resource_details
+                        except:
+                            evidence["resource_details"] = kubectl_result.get("output", "")
+                    
+                    # Get events
+                    try:
+                        resource_events = self.k8s_client.get_events(namespace=namespace, field_selector=f"involvedObject.name={comp_name}")
+                        evidence["resource_events"] = resource_events
+                    except Exception as e:
+                        evidence["resource_events_error"] = str(e)
+                    
+                except Exception as e:
+                    evidence["resource_error"] = str(e)
+            
+            # Add cluster-wide information that might be relevant
+            try:
+                # Get nodes info (simplified for context)
+                node_status = {}
+                nodes = self.k8s_client.get_nodes()
+                for node in nodes:
+                    name = node.get("metadata", {}).get("name", "unknown")
+                    conditions = node.get("status", {}).get("conditions", [])
+                    ready_condition = next((c for c in conditions if c.get("type") == "Ready"), {})
+                    node_status[name] = {
+                        "ready": ready_condition.get("status") == "True",
+                        "lastTransitionTime": ready_condition.get("lastTransitionTime")
+                    }
+                
+                evidence["cluster_node_status"] = node_status
+            except Exception as e:
+                evidence["cluster_info_error"] = str(e)
+                
+        except Exception as e:
+            logger.error(f"Error collecting evidence for {component}: {e}")
+            evidence["error"] = str(e)
+        
+        return evidence
+        
     def generate_root_cause_report(self, analysis_history: List[Dict[str, Any]]) -> str:
         """
         Generate a comprehensive root cause analysis report based on the analysis history.
