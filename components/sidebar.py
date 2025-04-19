@@ -100,6 +100,19 @@ def render_sidebar(k8s_client):
                         content=f"Investigation started at {time.strftime('%Y-%m-%d %H:%M:%S')}"
                     )
                     
+                    # Import and add initial suggestions
+                    from components.chatbot_interface import get_initial_suggestions
+                    initial_suggestions = get_initial_suggestions()
+                    
+                    # Add initial suggestions to the database
+                    st.session_state['db_handler'].update_investigation(
+                        investigation_id=investigation_id,
+                        updates={'next_actions': initial_suggestions}
+                    )
+                    
+                    # Also set them in the session state
+                    st.session_state.current_suggestions = initial_suggestions
+                    
                     st.success(f"Created new investigation: {investigation_title}")
                     st.rerun()
             except Exception as e:
@@ -284,6 +297,19 @@ def render_sidebar(k8s_client):
                             role="system",
                             content=f"Investigation started for namespace {selected_namespace}. Analysis type: {analysis_type}."
                         )
+                        
+                        # Import and add initial suggestions
+                        from components.chatbot_interface import get_initial_suggestions
+                        initial_suggestions = get_initial_suggestions()
+                        
+                        # Add initial suggestions to the database
+                        st.session_state['db_handler'].update_investigation(
+                            investigation_id=investigation_id,
+                            updates={'next_actions': initial_suggestions}
+                        )
+                        
+                        # Also set them in the session state
+                        st.session_state.current_suggestions = initial_suggestions
                         
                         st.success(f"Created new investigation: {investigation_title}")
                         st.session_state['new_investigation_created'] = True

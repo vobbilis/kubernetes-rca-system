@@ -191,6 +191,12 @@ def render_chatbot_interface(
         if not st.session_state.chat_history:
             print(f"DEBUG [chatbot_interface.py]: Loading chat history for investigation {investigation_id}")
             load_chat_history(investigation_id, db_handler)
+            
+            # If this is a new chat with no history, add initial suggestions
+            if not st.session_state.chat_history or len(st.session_state.chat_history) <= 1:  # 1 for just the system message
+                print(f"DEBUG [chatbot_interface.py]: Adding initial suggestions for new investigation")
+                initial_suggestions = get_initial_suggestions()
+                add_suggestions(initial_suggestions, investigation_id, db_handler)
         else:
             print(f"DEBUG [chatbot_interface.py]: Chat history already loaded, length: {len(st.session_state.chat_history)}")
     
