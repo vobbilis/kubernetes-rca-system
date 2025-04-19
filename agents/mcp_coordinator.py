@@ -659,3 +659,688 @@ identified root causes, and recommended actions to resolve the issues.
             }
             for analysis_id, analysis in self.analyses.items()
         ]
+        
+    def generate_hypotheses(self, component: str, finding: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Generate potential root cause hypotheses for a specific component and finding.
+        
+        Args:
+            component: Component identifier (e.g., "Pod/nginx")
+            finding: Finding data for the component
+            
+        Returns:
+            List of hypothesis objects
+        """
+        # Create a prompt for the LLM to generate hypotheses
+        system_prompt = """You are a Kubernetes Root Cause Analysis Expert.
+Your task is to generate potential root cause hypotheses for a specific Kubernetes component issue.
+For each hypothesis:
+1. Provide a clear description of the potential root cause
+2. Assign a confidence score (0.0-1.0) based on how likely this hypothesis is given the evidence
+3. Suggest investigation steps to confirm or rule out this hypothesis
+4. List any related components that might be affected
+
+Think broadly about different categories of potential causes:
+- Application issues (code bugs, misconfigurations)
+- Resource constraints (CPU, memory, disk)
+- Networking issues (connectivity, DNS, service discovery)
+- Configuration issues (environment variables, secrets, ConfigMaps)
+- Infrastructure issues (node problems, scheduling)
+- Security issues (permissions, RBAC, PSPs)
+
+Return a JSON array of hypothesis objects with the following structure:
+[
+  {
+    "description": "Clear description of the potential root cause",
+    "confidence": 0.8, // Value between 0.0 and 1.0
+    "investigation_steps": ["Step 1 to investigate", "Step 2 to investigate"],
+    "related_components": ["Component1", "Component2"]
+  }
+]
+"""
+        
+        # Construct the user prompt with the component and finding details
+        component_type = component.split('/')[0] if '/' in component else 'Resource'
+        component_name = component.split('/')[1] if '/' in component else component
+        
+        issue = finding.get('issue', 'Unknown issue')
+        severity = finding.get('severity', 'medium')
+        evidence = finding.get('evidence', 'No additional evidence')
+        
+        user_prompt = f"""## Kubernetes Issue Details
+
+**Component Type:** {component_type}
+**Component Name:** {component_name}
+**Issue:** {issue}
+**Severity:** {severity}
+**Evidence:** {evidence}
+
+Based on this information, generate 3-5 potential root cause hypotheses that might explain the observed issue.
+For each hypothesis, provide a confidence score, investigation steps, and related components.
+
+Output your response as a JSON array of hypothesis objects."""
+
+        try:
+            # Get hypotheses from LLM
+            result = self.llm_client.analyze(
+                context={"problem_description": user_prompt},
+                tools=[],
+                system_prompt=system_prompt
+            )
+            
+            # Parse the hypotheses from the result
+            hypotheses = result.get("hypotheses", [])
+            
+            # If no hypotheses were found in the expected field, try to find a JSON array in the final analysis
+            if not hypotheses and "final_analysis" in result:
+                try:
+                    # Try to extract JSON from the text
+                    analysis_text = result["final_analysis"]
+                    json_start = analysis_text.find("[")
+                    json_end = analysis_text.rfind("]") + 1
+                    
+                    if json_start != -1 and json_end > json_start:
+                        json_str = analysis_text[json_start:json_end]
+                        hypotheses = json.loads(json_str)
+                except Exception as e:
+                    print(f"Error extracting hypotheses from final analysis: {e}")
+            
+            # If still no hypotheses, create a default one
+            if not hypotheses:
+                hypotheses = [
+                    {
+                        "description": f"Unknown issue with {component}",
+                        "confidence": 0.5,
+                        "investigation_steps": [
+                            f"Check logs for {component}",
+                            f"Verify configuration of {component}",
+                            f"Check related resources and dependencies"
+                        ],
+                        "related_components": []
+                    }
+                ]
+            
+            return hypotheses
+            
+        except Exception as e:
+            print(f"Error generating hypotheses: {e}")
+            # Return a default hypothesis on error
+            return [
+                {
+                    "description": f"Error occurred while analyzing {component}: {str(e)}",
+                    "confidence": 0.3,
+                    "investigation_steps": [
+                        "Check system connectivity",
+                        "Verify LLM API access",
+                        "Try again with more specific information"
+                    ],
+                    "related_components": []
+                }
+            ]
+    
+    def get_investigation_plan(self, component: str, finding: Dict[str, Any], hypothesis: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate an investigation plan for a specific hypothesis.
+        
+        Args:
+            component: Component identifier (e.g., "Pod/nginx")
+            finding: Finding data for the component
+            hypothesis: Hypothesis to investigate
+            
+        Returns:
+            Investigation plan object
+        """
+        # Create a prompt for the LLM to generate an investigation plan
+        system_prompt = """You are a Kubernetes Root Cause Analysis Expert.
+Your task is to create a detailed investigation plan to confirm or rule out a specific hypothesis
+about a Kubernetes component issue.
+
+Include the following in your investigation plan:
+1. A list of specific steps to gather more information, in order of priority
+2. For each step, include the specific commands or techniques to use
+3. Expected results if the hypothesis is correct
+4. Alternative explanations to consider
+5. Next steps based on different possible outcomes
+
+Think about how to efficiently validate or invalidate the hypothesis. Consider:
+- Log analysis techniques
+- Specific kubectl commands to run
+- Configuration checks
+- Dependency verification
+- Resource utilization analysis
+- Network connectivity tests
+
+Return a structured investigation plan in JSON format.
+"""
+        
+        # Construct the user prompt with the component, finding, and hypothesis details
+        component_type = component.split('/')[0] if '/' in component else 'Resource'
+        component_name = component.split('/')[1] if '/' in component else component
+        
+        issue = finding.get('issue', 'Unknown issue')
+        evidence = finding.get('evidence', 'No additional evidence')
+        hypothesis_desc = hypothesis.get('description', 'Unknown hypothesis')
+        
+        user_prompt = f"""## Investigation Context
+
+**Component:** {component_type}/{component_name}
+**Issue:** {issue}
+**Evidence:** {evidence}
+**Hypothesis:** {hypothesis_desc}
+
+Create a detailed investigation plan to confirm or rule out this hypothesis.
+Include specific steps, commands, expected results, and next steps based on outcomes.
+
+Output your response as a JSON object with the following structure:
+{{
+  "steps": [
+    {{
+      "description": "Check pod logs",
+      "commands": ["kubectl logs pod-name -n namespace"],
+      "expected_if_true": "What we would see if the hypothesis is correct",
+      "expected_if_false": "What we would see if the hypothesis is incorrect"
+    }}
+  ],
+  "evidence_needed": ["List of evidence types needed to confirm/reject"],
+  "conclusion_criteria": "Criteria to reach a conclusion",
+  "next_steps": [
+    {{
+      "description": "What to do next based on findings",
+      "type": "command/analysis/correlation"
+    }}
+  ]
+}}"""
+
+        try:
+            # Get investigation plan from LLM
+            result = self.llm_client.analyze(
+                context={"problem_description": user_prompt},
+                tools=[],
+                system_prompt=system_prompt
+            )
+            
+            # Parse the investigation plan from the result
+            plan = result.get("investigation_plan", {})
+            
+            # If no plan was found in the expected field, try to find a JSON object in the final analysis
+            if not plan and "final_analysis" in result:
+                try:
+                    # Try to extract JSON from the text
+                    analysis_text = result["final_analysis"]
+                    json_start = analysis_text.find("{")
+                    json_end = analysis_text.rfind("}") + 1
+                    
+                    if json_start != -1 and json_end > json_start:
+                        json_str = analysis_text[json_start:json_end]
+                        plan = json.loads(json_str)
+                except Exception as e:
+                    print(f"Error extracting investigation plan from final analysis: {e}")
+            
+            # If still no plan, create a default one
+            if not plan:
+                plan = {
+                    "steps": [
+                        {
+                            "description": f"Check logs for {component}",
+                            "commands": [f"kubectl logs {component.split('/')[1]} -n default"],
+                            "expected_if_true": "Error messages related to the hypothesis",
+                            "expected_if_false": "No relevant error messages"
+                        },
+                        {
+                            "description": f"Examine resource status",
+                            "commands": [f"kubectl describe {component.lower()}"],
+                            "expected_if_true": "Status conditions that confirm the hypothesis",
+                            "expected_if_false": "No status conditions related to the hypothesis"
+                        }
+                    ],
+                    "evidence_needed": ["Logs", "Resource status", "Events"],
+                    "conclusion_criteria": "Strong correlation between observed symptoms and hypothesis predictions",
+                    "next_steps": [
+                        {
+                            "description": "Gather more specific information if results are inconclusive",
+                            "type": "analysis"
+                        }
+                    ]
+                }
+            
+            # Add a default empty evidence collection
+            if "evidence" not in plan:
+                plan["evidence"] = {}
+                
+            # Add a default conclusion
+            if "conclusion" not in plan:
+                plan["conclusion"] = {
+                    "text": "Investigation in progress",
+                    "confidence": 0.0,
+                    "confirmed": False
+                }
+            
+            return plan
+            
+        except Exception as e:
+            print(f"Error generating investigation plan: {e}")
+            # Return a default plan on error
+            return {
+                "steps": [
+                    {
+                        "description": f"Error occurred while generating plan: {str(e)}",
+                        "commands": ["Verify LLM API access"],
+                        "expected_if_true": "N/A",
+                        "expected_if_false": "N/A"
+                    }
+                ],
+                "evidence": {},
+                "conclusion": {
+                    "text": "Investigation could not be started due to an error",
+                    "confidence": 0.0,
+                    "confirmed": False
+                },
+                "next_steps": [
+                    {
+                        "description": "Try again or select a different hypothesis",
+                        "type": "analysis"
+                    }
+                ]
+            }
+            
+    def execute_investigation_step(self, component: str, finding: Dict[str, Any], hypothesis: Dict[str, Any], step: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute an investigation step and return results.
+        
+        Args:
+            component: Component identifier (e.g., "Pod/nginx")
+            finding: Finding data for the component
+            hypothesis: Hypothesis being investigated
+            step: Investigation step to execute
+            
+        Returns:
+            Step results
+        """
+        step_type = step.get('type', 'command')
+        step_desc = step.get('description', 'Unknown step')
+        
+        result = {
+            "step": step,
+            "executed": True,
+            "timestamp": time.time(),
+            "evidence": {},
+            "conclusion": None
+        }
+        
+        try:
+            if step_type == 'command':
+                # Execute a Kubernetes command
+                component_type = component.split('/')[0].lower() if '/' in component else 'resource'
+                component_name = component.split('/')[1] if '/' in component else component
+                
+                namespace = 'default'  # Default namespace, could be extracted from the component
+                
+                # Execute the appropriate command based on the step description
+                if 'logs' in step_desc.lower():
+                    logs = self.k8s_client.get_pod_logs(component_name, namespace)
+                    result["evidence"]["logs"] = logs
+                elif 'describe' in step_desc.lower() or 'status' in step_desc.lower():
+                    kubectl_result = self._run_kubectl_command(["describe", component_type, component_name, "-n", namespace])
+                    result["evidence"]["resource_status"] = kubectl_result.get('output', '')
+                elif 'events' in step_desc.lower():
+                    events = self.k8s_client.get_events(namespace)
+                    filtered_events = [e for e in events if component_name in json.dumps(e)]
+                    result["evidence"]["events"] = json.dumps(filtered_events, indent=2)
+                else:
+                    # Generic command execution
+                    commands = step.get('commands', [])
+                    command_results = []
+                    
+                    for cmd in commands:
+                        if cmd.startswith('kubectl'):
+                            # Execute kubectl command
+                            cmd_parts = cmd.split()[1:]  # Remove 'kubectl'
+                            kubectl_result = self._run_kubectl_command(cmd_parts)
+                            command_results.append({
+                                "command": cmd,
+                                "output": kubectl_result.get('output', ''),
+                                "success": kubectl_result.get('success', False)
+                            })
+                    
+                    if command_results:
+                        result["evidence"]["command_results"] = command_results
+                
+                # Analyze the evidence using LLM to determine next steps or conclusion
+                evidence_analysis = self._analyze_investigation_evidence(
+                    component, finding, hypothesis, result["evidence"]
+                )
+                
+                # Add the analysis to the result
+                result.update(evidence_analysis)
+                
+            elif step_type == 'analysis':
+                # Analyze existing data
+                # Get latest evidence from history
+                # (This would be more sophisticated in a real implementation)
+                evidence_analysis = self._analyze_investigation_evidence(
+                    component, finding, hypothesis, {}  # Empty evidence for now
+                )
+                
+                # Add the analysis to the result
+                result.update(evidence_analysis)
+                
+            elif step_type == 'correlation':
+                # Correlate findings across components
+                # (This would be more sophisticated in a real implementation)
+                correlated_components = step.get('components', [])
+                
+                # Placeholder for correlation analysis
+                correlated_findings = []
+                
+                # Add correlation results
+                result["evidence"]["correlation"] = {
+                    "components": correlated_components,
+                    "findings": correlated_findings
+                }
+                
+                # Analyze the correlations
+                evidence_analysis = self._analyze_investigation_evidence(
+                    component, finding, hypothesis, result["evidence"]
+                )
+                
+                # Add the analysis to the result
+                result.update(evidence_analysis)
+                
+            else:
+                # Unknown step type
+                result["error"] = f"Unknown step type: {step_type}"
+                
+            return result
+            
+        except Exception as e:
+            # Handle errors
+            error_msg = str(e)
+            print(f"Error executing investigation step: {error_msg}")
+            result["error"] = error_msg
+            result["executed"] = False
+            
+            return result
+    
+    def _analyze_investigation_evidence(self, component: str, finding: Dict[str, Any], hypothesis: Dict[str, Any], evidence: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyze evidence collected during investigation to determine next steps or conclusion.
+        
+        Args:
+            component: Component identifier
+            finding: Finding data
+            hypothesis: Hypothesis being investigated
+            evidence: Evidence collected
+            
+        Returns:
+            Analysis results
+        """
+        # Create a prompt for the LLM to analyze the evidence
+        system_prompt = """You are a Kubernetes Root Cause Analysis Expert.
+Your task is to analyze evidence collected during an investigation to determine if it supports
+or refutes a specific hypothesis about a Kubernetes issue.
+
+Based on the evidence:
+1. Assess whether the hypothesis is supported or refuted
+2. Assign a confidence level to your assessment (0.0-1.0)
+3. Suggest next steps for further investigation if needed
+4. If confident enough, provide a conclusion and recommendations
+
+Think critically about the evidence and consider alternative explanations.
+Consider what additional evidence might be needed to increase confidence.
+
+Return a structured analysis in JSON format.
+"""
+        
+        # Construct the user prompt with the component, finding, hypothesis, and evidence details
+        component_type = component.split('/')[0] if '/' in component else 'Resource'
+        component_name = component.split('/')[1] if '/' in component else component
+        
+        issue = finding.get('issue', 'Unknown issue')
+        hypothesis_desc = hypothesis.get('description', 'Unknown hypothesis')
+        
+        # Format evidence for the prompt
+        evidence_text = ""
+        for evidence_type, evidence_data in evidence.items():
+            evidence_text += f"\n\n### {evidence_type.capitalize()}\n"
+            
+            if isinstance(evidence_data, str):
+                # Truncate very long evidence to avoid context limits
+                if len(evidence_data) > 2000:
+                    evidence_text += evidence_data[:2000] + "... [truncated]"
+                else:
+                    evidence_text += evidence_data
+            elif isinstance(evidence_data, list):
+                for i, item in enumerate(evidence_data):
+                    evidence_text += f"\n{i+1}. {item}"
+            elif isinstance(evidence_data, dict):
+                for key, value in evidence_data.items():
+                    evidence_text += f"\n{key}: {value}"
+        
+        user_prompt = f"""## Investigation Analysis
+
+**Component:** {component_type}/{component_name}
+**Issue:** {issue}
+**Hypothesis:** {hypothesis_desc}
+
+### Evidence Collected
+{evidence_text if evidence_text else "No evidence has been collected yet."}
+
+Based on this evidence, analyze whether the hypothesis is supported or refuted.
+Provide your confidence level, suggested next steps, and a conclusion if possible.
+
+Output your response as a JSON object with the following structure:
+{{
+  "assessment": "supported/refuted/inconclusive",
+  "confidence": 0.7, // Value between 0.0 and 1.0
+  "next_steps": [
+    {{
+      "description": "Specific next step to take",
+      "type": "command/analysis/correlation",
+      "priority": "high/medium/low"
+    }}
+  ],
+  "conclusion": {{
+    "text": "Detailed conclusion about the root cause",
+    "confidence": 0.9, // Value between 0.0 and 1.0
+    "recommendations": ["Recommendation 1", "Recommendation 2"]
+  }}
+}}"""
+
+        try:
+            # Get analysis from LLM
+            result = self.llm_client.analyze(
+                context={"problem_description": user_prompt},
+                tools=[],
+                system_prompt=system_prompt
+            )
+            
+            # Extract the analysis from the result
+            analysis = {}
+            
+            # If there's a final analysis, try to extract JSON from it
+            if "final_analysis" in result:
+                try:
+                    # Try to extract JSON from the text
+                    analysis_text = result["final_analysis"]
+                    json_start = analysis_text.find("{")
+                    json_end = analysis_text.rfind("}") + 1
+                    
+                    if json_start != -1 and json_end > json_start:
+                        json_str = analysis_text[json_start:json_end]
+                        analysis = json.loads(json_str)
+                except Exception as e:
+                    print(f"Error extracting analysis from final analysis: {e}")
+            
+            # If we couldn't extract a proper analysis, create a default one
+            if not analysis:
+                analysis = {
+                    "assessment": "inconclusive",
+                    "confidence": 0.3,
+                    "next_steps": [
+                        {
+                            "description": "Gather more evidence about the issue",
+                            "type": "command",
+                            "priority": "high"
+                        }
+                    ]
+                }
+            
+            # Parse the next steps from the analysis
+            next_steps = analysis.get("next_steps", [])
+            conclusion = analysis.get("conclusion", None)
+            
+            # Build the result
+            result = {
+                "analysis": analysis,
+                "next_steps": next_steps
+            }
+            
+            # Add conclusion if present
+            if conclusion:
+                result["conclusion"] = conclusion
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error analyzing investigation evidence: {e}")
+            # Return a default analysis on error
+            return {
+                "analysis": {
+                    "assessment": "error",
+                    "confidence": 0.0,
+                    "error": str(e)
+                },
+                "next_steps": [
+                    {
+                        "description": "Try a different investigation approach",
+                        "type": "analysis",
+                        "priority": "high"
+                    }
+                ]
+            }
+    
+    def generate_root_cause_report(self, analysis_history: List[Dict[str, Any]]) -> str:
+        """
+        Generate a comprehensive root cause analysis report based on the analysis history.
+        
+        Args:
+            analysis_history: List of analysis history entries
+            
+        Returns:
+            Formatted report as a string
+        """
+        # Create a prompt for the LLM to generate a report
+        system_prompt = """You are a Kubernetes Root Cause Analysis Expert.
+Your task is to generate a comprehensive root cause analysis report based on the investigation history.
+
+The report should include:
+1. Executive summary
+2. Problem statement and initial symptoms
+3. Investigation approach and methodology
+4. Key findings and evidence
+5. Root cause identification with confidence level
+6. Recommendations for resolution
+7. Prevention strategies for the future
+
+Use Markdown formatting for the report. Make it clear, concise, and actionable.
+Focus on explaining technical concepts in a way that both technical and non-technical audiences can understand.
+"""
+        
+        # Construct the user prompt with the analysis history
+        history_text = ""
+        
+        for i, entry in enumerate(analysis_history):
+            stage = entry.get('stage', 'unknown')
+            data = entry.get('data', {})
+            timestamp = entry.get('timestamp', 0)
+            
+            history_text += f"\n\n### Step {i+1}: {stage.capitalize()}\n"
+            
+            if stage == 'initial':
+                findings = data.get('findings', [])
+                history_text += f"Initial analysis identified {len(findings)} findings."
+            elif stage == 'component_selection':
+                component = data.get('component', 'Unknown')
+                finding = data.get('finding', {})
+                history_text += f"Selected component: {component}\n"
+                history_text += f"Issue: {finding.get('issue', 'Unknown issue')}"
+            elif stage == 'hypothesis_selection':
+                hypothesis = data.get('hypothesis', {})
+                history_text += f"Selected hypothesis: {hypothesis.get('description', 'Unknown')}\n"
+                history_text += f"Confidence: {hypothesis.get('confidence', 0.0)}"
+            elif stage == 'investigation_step':
+                step = data.get('step', {})
+                result = data.get('result', {})
+                history_text += f"Investigation step: {step.get('description', 'Unknown')}\n"
+                
+                evidence = result.get('evidence', {})
+                if evidence:
+                    history_text += "Evidence collected:\n"
+                    for evidence_type, evidence_data in evidence.items():
+                        history_text += f"- {evidence_type.capitalize()}: [data available]\n"
+            elif stage == 'conclusion':
+                conclusion = data.get('conclusion', {})
+                history_text += f"Conclusion: {conclusion.get('text', 'Unknown')}\n"
+                history_text += f"Confidence: {conclusion.get('confidence', 0.0)}"
+        
+        user_prompt = f"""## Root Cause Analysis Report Request
+
+I need a comprehensive root cause analysis report based on the following investigation history:
+
+{history_text}
+
+Please generate a well-structured report covering the investigation process, findings, root cause, and recommendations.
+Use Markdown formatting for better readability.
+"""
+
+        try:
+            # Get report from LLM
+            result = self.llm_client.analyze(
+                context={"problem_description": user_prompt},
+                tools=[],
+                system_prompt=system_prompt
+            )
+            
+            # Extract the report from the result
+            if "final_analysis" in result:
+                return result["final_analysis"]
+            else:
+                return "Error generating report: No final analysis available."
+            
+        except Exception as e:
+            print(f"Error generating root cause report: {e}")
+            return f"Error generating report: {str(e)}"
+            
+    def _run_kubectl_command(self, args):
+        """
+        Run a kubectl command using the K8s client.
+        
+        Args:
+            args: Command arguments (excluding 'kubectl')
+            
+        Returns:
+            Dictionary with command result
+        """
+        try:
+            # Use the k8s_client's _run_kubectl_command if available
+            if hasattr(self.k8s_client, '_run_kubectl_command'):
+                return self.k8s_client._run_kubectl_command(args)
+            else:
+                # Fallback to a simple implementation
+                import subprocess
+                
+                cmd = ['kubectl'] + args
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = process.communicate()
+                
+                return {
+                    'success': process.returncode == 0,
+                    'output': stdout.decode('utf-8'),
+                    'error': stderr.decode('utf-8')
+                }
+        except Exception as e:
+            return {
+                'success': False,
+                'output': '',
+                'error': str(e)
+            }

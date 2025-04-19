@@ -10,6 +10,11 @@ import time
 from components.sidebar import render_sidebar
 from components.visualization import render_visualization
 from components.report import render_report
+from components.interactive_session import (
+    init_interactive_session, 
+    start_interactive_session, 
+    render_interactive_session
+)
 from agents.mcp_coordinator import MCPCoordinator
 from utils.k8s_client import K8sClient
 from utils.mock_k8s_client import MockK8sClient
@@ -124,8 +129,34 @@ def main():
         # Display detailed report
         render_report(analysis_results, analysis_type)
 
+        # Add option to start interactive root cause analysis
+        if not st.session_state.get('interactive_mode', False):
+            if st.button("🔍 Start Interactive Root Cause Analysis"):
+                # Extract findings for interactive analysis
+                findings = []
+                
+                # Get findings from results based on analysis type
+                if analysis_type == 'resources':
+                    # Resource analysis findings
+                    for resource_type, resources in analysis_results.get('resources', {}).items():
+                        for resource in resources:
+                            if resource.get('status') != 'Ready' and resource.get('status') != 'Running':
+                                findings.append({
+                                    'component': f"{resource_type}/{resource.get('name')}",
+                                    'issue': f"Status: {resource.get('status')}",
+                                    'severity': 'critical' if resource.get('status') in ['CrashLoopBackOff', 'Error', 'ImagePullBackOff'] else 'high',
+                                    'evidence': yaml.dump(resource, default_flow_style=False)
+                                })
+                elif 'findings' in analysis_results:
+                    # Direct findings from other analysis types
+                    findings = analysis_results.get('findings', [])
+                
+                # Start the interactive session with the findings
+                start_interactive_session(findings)
+                st.experimental_rerun()
+                
         # Export functionality
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             if st.button("Export Analysis Report"):
                 report_yaml = yaml.dump(analysis_results, default_flow_style=False)
@@ -141,10 +172,23 @@ def main():
                 st.session_state.analysis_complete = False
                 st.session_state.analysis_results = None
                 st.experimental_rerun()
+                
+        with col3:
+            if st.session_state.get('interactive_mode', False):
+                if st.button("End Interactive Session"):
+                    st.session_state.interactive_mode = False
+                    st.experimental_rerun()
+    
+    # Render the interactive session if active
+    if st.session_state.get('interactive_mode', False):
+        render_interactive_session(coordinator)
 
 if __name__ == "__main__":
     # Initialize session state
     if 'analysis_complete' not in st.session_state:
         st.session_state.analysis_complete = False
+    
+    # Initialize interactive session state
+    init_interactive_session()
         
     main()
