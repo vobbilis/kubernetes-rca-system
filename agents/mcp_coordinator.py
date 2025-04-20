@@ -956,7 +956,7 @@ identified root causes, and recommended actions to resolve the issues.
             for analysis_id, analysis in self.analyses.items()
         ]
         
-    def process_user_query(self, query: str, namespace: str, context: Optional[str] = None) -> Dict[str, Any]:
+    def process_user_query(self, query: str, namespace: str, context: Optional[str] = None, previous_findings: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Process a user query in natural language and generate a response with suggested next actions.
         
@@ -964,6 +964,7 @@ identified root causes, and recommended actions to resolve the issues.
             query: User's natural language query
             namespace: Kubernetes namespace to analyze
             context: Kubernetes context (optional)
+            previous_findings: List of key findings from previous interactions (optional)
             
         Returns:
             dict: Response data including text response and suggested actions
@@ -972,6 +973,10 @@ identified root causes, and recommended actions to resolve the issues.
         pod_statuses = {}
         problematic_pods = []
         recent_events = []
+        
+        # Initialize previous findings if not provided
+        if previous_findings is None:
+            previous_findings = []
         
         try:
             # Get pods in the namespace and check their status
@@ -1017,10 +1022,8 @@ identified root causes, and recommended actions to resolve the issues.
         except Exception as e:
             pass  # Continue even if there's an error in gathering information
         
-        # Obtain previous context if available from session storage
-        previous_findings = []
-        # Here we would normally retrieve previous key findings from a database or session state
-        # For now we'll use the current findings we generate in this query
+        # If no previous findings were provided, we can initialize an empty list
+        # But we've already done this in the method parameters initialization
         
         # Create a prompt for the LLM with enhanced context
         prompt = f"""
@@ -1438,7 +1441,8 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
     def update_suggestions_after_action(self, previous_suggestions: List[Dict[str, Any]], 
                                         selected_suggestion_index: int,
                                         namespace: str,
-                                        context: Optional[str] = None) -> Dict[str, Any]:
+                                        context: Optional[str] = None,
+                                        previous_findings: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Update the suggested next actions after a user selects one.
         
@@ -1447,6 +1451,7 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
             selected_suggestion_index: Index of the suggestion that was selected
             namespace: Kubernetes namespace being analyzed
             context: Kubernetes context (optional)
+            previous_findings: List of key findings from previous interactions (optional)
             
         Returns:
             dict: Updated response with new suggestions
@@ -1541,6 +1546,13 @@ Your goal is to help the user find the root cause with minimal steps.
         elif action_type == "check_events":
             prompt += "\nThe user previously checked Kubernetes events. Suggest actions that would help investigate specific resources mentioned in the events."
         
+        # Add key findings from previous interactions if available
+        if previous_findings:
+            prompt += "\n\nKEY FINDINGS FROM PREVIOUS ANALYSIS:\n"
+            for i, finding in enumerate(previous_findings, 1):
+                prompt += f"{i}. {finding}\n"
+            prompt += "\nUse these key findings to focus and narrow your investigation."
+                
         # Try to get resource information for more context
         try:
             # Get pods in the namespace
