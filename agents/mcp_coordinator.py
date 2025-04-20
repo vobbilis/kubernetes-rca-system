@@ -1977,7 +1977,9 @@ Your goal is to help the user find the root cause with minimal steps.
                 "summary": f"An error occurred while running the {agent_type} analysis: {str(e)}"
             }
     
-    def analyze_resource(self, resource_type: str, resource_name: str, resource_details: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_resource(self, resource_type: str, resource_name: str, resource_details: Dict[str, Any],
+                         namespace: str = "default", previous_findings: Optional[List[str]] = None,
+                         investigation_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyze a specific Kubernetes resource.
         
@@ -1985,6 +1987,9 @@ Your goal is to help the user find the root cause with minimal steps.
             resource_type: Type of resource (Pod, Deployment, Service, etc.)
             resource_name: Name of the resource
             resource_details: Resource data
+            namespace: Kubernetes namespace
+            previous_findings: List of previous findings (optional)
+            investigation_id: ID for the current investigation (optional)
             
         Returns:
             dict: Analysis results with summary
@@ -2035,7 +2040,9 @@ Return your analysis in JSON format with these fields:
                 "summary": f"Failed to analyze {resource_type}/{resource_name}: {str(e)}"
             }
     
-    def analyze_logs(self, pod_name: str, container_name: Optional[str], logs: str) -> Dict[str, Any]:
+    def analyze_logs(self, pod_name: str, container_name: Optional[str] = None, logs: str = "", 
+                    namespace: str = "default", previous_findings: Optional[List[str]] = None,
+                    investigation_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyze logs from a pod or container.
         
@@ -2043,6 +2050,9 @@ Return your analysis in JSON format with these fields:
             pod_name: Name of the pod
             container_name: Name of the container (optional)
             logs: Log content
+            namespace: Kubernetes namespace
+            previous_findings: List of previous findings (optional)
+            investigation_id: ID for the current investigation (optional)
             
         Returns:
             dict: Analysis results with summary
@@ -2098,12 +2108,17 @@ Return your analysis in JSON format with these fields:
                 "summary": f"Failed to analyze logs from {pod_name}{container_info}: {str(e)}"
             }
     
-    def analyze_events(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def analyze_events(self, events: List[Dict[str, Any]], namespace: str = "default", 
+                      previous_findings: Optional[List[str]] = None,
+                      investigation_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Analyze Kubernetes events.
         
         Args:
             events: List of Kubernetes events
+            namespace: Kubernetes namespace
+            previous_findings: List of previous findings (optional)
+            investigation_id: ID for the current investigation (optional)
             
         Returns:
             dict: Analysis results with summary
@@ -3133,3 +3148,487 @@ Use Markdown formatting for better readability.
                 'output': '',
                 'error': str(e)
             }
+            
+    def process_suggestion(self, suggestion_action: Dict[str, Any], namespace: str, context: Optional[str] = None,
+                         previous_findings: Optional[List[str]] = None,
+                         investigation_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Process a suggestion action and generate a specialized response with further suggestions.
+        This method acts as a next step in the iterative investigation process.
+        
+        Args:
+            suggestion_action: The selected suggestion action object
+            namespace: Kubernetes namespace to analyze
+            context: Kubernetes context (optional)
+            previous_findings: List of key findings from previous interactions (optional)
+            investigation_id: ID of the current investigation for logging (optional)
+            
+        Returns:
+            dict: Response data including specialized analysis and further suggested actions
+        """
+        suggestion_type = suggestion_action.get('type', 'unknown')
+        
+        try:
+            # Process different suggestion types
+            if suggestion_type == 'run_agent':
+                agent_type = suggestion_action.get('agent_type', 'unknown')
+                
+                # Run the specific agent analysis
+                agent_results = self.run_agent_analysis(
+                    agent_type=agent_type,
+                    namespace=namespace,
+                    context=context
+                )
+                
+                # Generate a specialized response from the agent results
+                agent_context = {
+                    'agent_type': agent_type,
+                    'results': agent_results,
+                    'namespace': namespace,
+                    'previous_findings': previous_findings
+                }
+                
+                return self._generate_agent_specific_response(agent_context, investigation_id)
+                
+            elif suggestion_type == 'check_resource':
+                resource_type = suggestion_action.get('resource_type', 'unknown')
+                resource_name = suggestion_action.get('resource_name', 'unknown')
+                
+                # Get resource details
+                resource_details = self.k8s_client.get_resource_details(
+                    resource_type=resource_type,
+                    resource_name=resource_name,
+                    namespace=namespace
+                )
+                
+                # Analyze the resource
+                resource_analysis = self.analyze_resource(
+                    resource_type=resource_type,
+                    resource_name=resource_name,
+                    resource_details=resource_details,
+                    namespace=namespace,
+                    previous_findings=previous_findings,
+                    investigation_id=investigation_id
+                )
+                
+                # Generate suggestions based on the resource analysis
+                suggestions = self._generate_suggestions_from_analysis(
+                    analysis=resource_analysis.get('summary', ''),
+                    agent_type=f"{resource_type.lower()}_analyzer",
+                    namespace=namespace,
+                    previous_findings=previous_findings
+                )
+                
+                # Extract key findings
+                key_findings = self._extract_key_findings(resource_analysis.get('summary', ''))
+                
+                return {
+                    'response': resource_analysis.get('summary', f"I've analyzed the {resource_type}/{resource_name} resource."),
+                    'suggestions': suggestions,
+                    'key_findings': key_findings,
+                    'evidence': resource_details
+                }
+                
+            elif suggestion_type == 'check_logs':
+                pod_name = suggestion_action.get('pod_name', 'unknown')
+                container_name = suggestion_action.get('container_name', None)
+                
+                # Get pod logs
+                logs = self.k8s_client.get_pod_logs(
+                    pod_name=pod_name,
+                    container_name=container_name,
+                    namespace=namespace
+                )
+                
+                # Analyze logs
+                logs_analysis = self.analyze_logs(
+                    pod_name=pod_name,
+                    container_name=container_name,
+                    logs=logs,
+                    namespace=namespace,
+                    previous_findings=previous_findings,
+                    investigation_id=investigation_id
+                )
+                
+                # Generate suggestions based on the logs analysis
+                suggestions = self._generate_suggestions_from_analysis(
+                    analysis=logs_analysis.get('summary', ''),
+                    agent_type="logs_analyzer",
+                    namespace=namespace,
+                    previous_findings=previous_findings
+                )
+                
+                # Extract key findings
+                key_findings = self._extract_key_findings(logs_analysis.get('summary', ''))
+                
+                return {
+                    'response': logs_analysis.get('summary', f"I've analyzed the logs for pod {pod_name}."),
+                    'suggestions': suggestions,
+                    'key_findings': key_findings,
+                    'evidence': {'pod_logs': logs}
+                }
+                
+            elif suggestion_type == 'check_events':
+                field_selector = suggestion_action.get('field_selector', None)
+                
+                # Get events
+                events = self.k8s_client.get_events(
+                    namespace=namespace,
+                    field_selector=field_selector
+                )
+                
+                # Analyze events
+                events_analysis = self.analyze_events(events=events)
+                
+                # Generate suggestions based on the events analysis
+                suggestions = self._generate_suggestions_from_analysis(
+                    analysis=events_analysis.get('summary', ''),
+                    agent_type="events_analyzer",
+                    namespace=namespace,
+                    previous_findings=previous_findings
+                )
+                
+                # Extract key findings
+                key_findings = self._extract_key_findings(events_analysis.get('summary', ''))
+                
+                return {
+                    'response': events_analysis.get('summary', "I've analyzed the Kubernetes events."),
+                    'suggestions': suggestions,
+                    'key_findings': key_findings,
+                    'evidence': {'events': events}
+                }
+                
+            elif suggestion_type == 'query':
+                query = suggestion_action.get('query', '')
+                
+                # Process the query as a user question
+                query_response = self.process_user_query(
+                    query=query,
+                    namespace=namespace,
+                    context=context,
+                    previous_findings=previous_findings,
+                    investigation_id=investigation_id,
+                    is_suggestion_query=True
+                )
+                
+                return query_response
+                
+            else:
+                # Unknown suggestion type
+                return {
+                    'error': f"Unknown suggestion type: {suggestion_type}",
+                    'suggestions': self._generate_generic_suggestions(namespace, previous_findings)
+                }
+                
+        except Exception as e:
+            logger.error(f"Error processing suggestion: {e}")
+            return {
+                'error': f"Error processing suggestion: {str(e)}",
+                'suggestions': self._generate_generic_suggestions(namespace, previous_findings)
+            }
+    
+    def _generate_agent_specific_response(self, agent_context: Dict[str, Any], investigation_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Generate a response based on a specific agent's analysis results.
+        
+        Args:
+            agent_context: Context information about the agent and its results
+            investigation_id: Optional investigation ID for logging
+            
+        Returns:
+            dict: Response with analysis and suggestions
+        """
+        agent_type = agent_context.get('agent_type', 'unknown')
+        agent_results = agent_context.get('results', {})
+        namespace = agent_context.get('namespace', 'default')
+        previous_findings = agent_context.get('previous_findings', [])
+        
+        # Extract the summary or main analysis text
+        analysis_text = agent_results.get('summary', 
+                                       agent_results.get('analysis', 
+                                                      f"I've analyzed the {agent_type} data but no detailed summary was generated."))
+        
+        # Generate suggestions based on the analysis
+        suggestions = self._generate_suggestions_from_analysis(
+            analysis=analysis_text,
+            agent_type=agent_type,
+            namespace=namespace,
+            previous_findings=previous_findings
+        )
+        
+        # Extract key findings from the analysis text
+        key_findings = self._extract_key_findings(analysis_text)
+        
+        # Combine all data in a structured response
+        return {
+            'response': analysis_text,
+            'suggestions': suggestions,
+            'key_findings': key_findings,
+            'evidence': agent_results
+        }
+            
+    def _generate_suggestions_from_analysis(self, analysis: str, agent_type: str, namespace: str, previous_findings: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Generate suggested next actions based on the analysis text.
+        
+        Args:
+            analysis: Text containing the analysis
+            agent_type: Type of agent that produced the analysis
+            namespace: Kubernetes namespace
+            previous_findings: List of previous findings
+            
+        Returns:
+            list: Suggested next actions with priority and reasoning
+        """
+        # Prepare a prompt to generate suggestions
+        system_prompt = """You are a Kubernetes expert creating suggested next actions 
+for investigating issues. Generate specific, actionable suggestions based on the analysis.
+Each suggestion should have:
+1. A clear action text
+2. A priority (CRITICAL, HIGH, NORMAL, LOW)
+3. Reasoning that explains why this action is important
+4. An action type and parameters
+"""
+        
+        # Build the prompt for suggestion generation
+        prompt = f"""
+Based on the following analysis of {agent_type} data in namespace '{namespace}', generate 3-5 suggested next actions.
+
+ANALYSIS:
+{analysis}
+
+PREVIOUS FINDINGS:
+{json.dumps(previous_findings) if previous_findings else "No previous findings"}
+
+Format each suggestion as a JSON object with these fields:
+- text: The suggestion text (concise, action-oriented)
+- priority: "CRITICAL", "HIGH", "NORMAL", or "LOW" based on urgency
+- reasoning: Why this action is important (2-3 sentences)
+- action: An object with action parameters
+
+For the action object, choose one of these formats:
+1. For running a specific agent:
+   {{
+     "type": "run_agent",
+     "agent_type": "metrics"|"logs"|"events"|"topology"|"traces"|"resources"
+   }}
+
+2. For checking a specific resource:
+   {{
+     "type": "check_resource",
+     "resource_type": "pod"|"deployment"|"service"|"node"|etc.,
+     "resource_name": "<name of resource>"
+   }}
+
+3. For checking logs of a specific pod:
+   {{
+     "type": "check_logs",
+     "pod_name": "<pod name>",
+     "container_name": "<container name or null>"
+   }}
+
+4. For checking related events:
+   {{
+     "type": "check_events",
+     "field_selector": "involvedObject.name=<resource name>"
+   }}
+
+5. For a specific follow-up query:
+   {{
+     "type": "query",
+     "query": "<follow-up query text>"
+   }}
+
+Return a list of 3-5 suggestion objects in valid JSON format.
+"""
+        
+        try:
+            # Get suggestions from LLM
+            suggestions_result = self.llm_client.generate_structured_output(
+                prompt=prompt,
+                user_query="Generate suggested next actions based on the analysis",
+                investigation_id=investigation_id,
+                accumulated_findings=previous_findings,
+                namespace=namespace
+            )
+            
+            if isinstance(suggestions_result, list) and len(suggestions_result) > 0:
+                return suggestions_result
+            elif isinstance(suggestions_result, dict) and 'suggestions' in suggestions_result:
+                return suggestions_result.get('suggestions', [])
+            else:
+                logger.warning(f"Unexpected suggestion format: {suggestions_result}")
+                return self._generate_generic_suggestions(namespace, previous_findings)
+                
+        except Exception as e:
+            logger.error(f"Error generating suggestions from analysis: {e}")
+            return self._generate_generic_suggestions(namespace, previous_findings)
+    
+    def _generate_generic_suggestions(self, namespace: str, previous_findings: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Generate generic suggestions when specific ones cannot be generated.
+        
+        Args:
+            namespace: Kubernetes namespace
+            previous_findings: List of previous findings
+            
+        Returns:
+            list: Generic suggested next actions
+        """
+        return [
+            {
+                "text": "Check pod health",
+                "action": {
+                    "type": "run_agent",
+                    "agent_type": "metrics"
+                },
+                "priority": "HIGH",
+                "reasoning": "Checking pod health metrics can reveal resource constraints or performance issues"
+            },
+            {
+                "text": "Analyze recent events",
+                "action": {
+                    "type": "run_agent",
+                    "agent_type": "events"
+                },
+                "priority": "HIGH",
+                "reasoning": "Recent Kubernetes events often contain important clues about failures or state changes"
+            },
+            {
+                "text": "Check for failing pods",
+                "action": {
+                    "type": "query",
+                    "query": "Show me any pods that are failing or in a non-ready state in the " + namespace + " namespace"
+                },
+                "priority": "CRITICAL",
+                "reasoning": "Failed pods directly impact service availability and require immediate attention"
+            }
+        ]
+    
+    def _extract_key_findings(self, analysis_text: str) -> List[str]:
+        """
+        Extract key findings from the analysis text.
+        
+        Args:
+            analysis_text: Text containing the analysis
+            
+        Returns:
+            list: Extracted key findings
+        """
+        findings = []
+        
+        # Extract findings based on common patterns
+        if "Key Findings:" in analysis_text or "Key findings:" in analysis_text:
+            # Split by common section headers
+            for splitter in ["Impact Assessment:", "Recommended Actions:", "Recommended Next Steps:", "Conclusion:"]:
+                if splitter in analysis_text:
+                    findings_section = analysis_text.split(splitter)[0]
+                    break
+            else:
+                findings_section = analysis_text
+            
+            # Further extract the findings section
+            if "Key Findings:" in findings_section:
+                findings_section = findings_section.split("Key Findings:")[1].strip()
+            elif "Key findings:" in findings_section:
+                findings_section = findings_section.split("Key findings:")[1].strip()
+            
+            # Split by bullet points or numbered lists
+            lines = findings_section.split("\n")
+            for line in lines:
+                line = line.strip()
+                # Check if the line starts with a bullet point or number
+                if line.startswith("- ") or line.startswith("* ") or (line and line[0].isdigit() and line[1:].startswith(". ")):
+                    # Remove the bullet point or number
+                    if line.startswith("- "):
+                        finding = line[2:].strip()
+                    elif line.startswith("* "):
+                        finding = line[2:].strip()
+                    else:  # Numbered list
+                        finding = line.split(". ", 1)[1].strip()
+                    
+                    if finding and len(finding) > 10:  # Ensure it's not too short
+                        findings.append(finding)
+        
+        return findings
+    
+    def update_suggestions_after_action(self, previous_suggestions: List[Dict[str, Any]], 
+                                      selected_suggestion_index: int,
+                                      namespace: str, 
+                                      context: Optional[str] = None,
+                                      previous_findings: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Update suggestions after a user selects an action.
+        This method creates a new set of contextually relevant suggestions based on the selected action.
+        
+        Args:
+            previous_suggestions: The previous list of suggestions
+            selected_suggestion_index: Index of the selected suggestion
+            namespace: Kubernetes namespace
+            context: Kubernetes context
+            previous_findings: List of previous findings
+            
+        Returns:
+            dict: Response with updated suggestions and any key findings
+        """
+        # Get the selected suggestion
+        if not previous_suggestions or selected_suggestion_index >= len(previous_suggestions):
+            return {"suggestions": self._generate_generic_suggestions(namespace, previous_findings)}
+        
+        selected_suggestion = previous_suggestions[selected_suggestion_index]
+        suggestion_action = selected_suggestion.get('action', {})
+        suggestion_type = suggestion_action.get('type', 'unknown')
+        
+        # Create a prompt to generate updated suggestions based on the action taken
+        system_prompt = """You are a Kubernetes expert generating contextually relevant next actions.
+Based on the action the user just selected, generate a new set of suggestions that would logically follow as next steps.
+Each suggestion should build on the previous action and be specific to the current investigation context.
+"""
+        
+        prompt = f"""
+The user just performed the following action in namespace '{namespace}':
+
+SELECTED ACTION:
+{json.dumps(selected_suggestion, indent=2)}
+
+PREVIOUS CONTEXT:
+Previous findings: {json.dumps(previous_findings) if previous_findings else "None"}
+
+Generate 3-5 new suggested next actions that logically follow this action.
+These should be different from the previously selected action and build upon what we've learned.
+
+Format each suggestion as a JSON object with these fields:
+- text: The suggestion text (concise, action-oriented)
+- priority: "CRITICAL", "HIGH", "NORMAL", or "LOW" based on urgency
+- reasoning: Why this action is important as a follow-up to the previous action (2-3 sentences)
+- action: An object with action parameters (same format as in the previous example)
+
+Return a list of 3-5 new suggestion objects in valid JSON format.
+"""
+        
+        try:
+            # Get updated suggestions from LLM
+            updated_suggestions = self.llm_client.generate_structured_output(
+                prompt=prompt,
+                user_query=f"Generate updated suggestions after {selected_suggestion.get('text', 'action')}",
+                system_prompt=system_prompt
+            )
+            
+            # Extract and format the results
+            if isinstance(updated_suggestions, list) and len(updated_suggestions) > 0:
+                # Extract key findings from the selected action
+                key_findings = self._extract_key_findings(selected_suggestion.get('reasoning', ''))
+                
+                return {
+                    "suggestions": updated_suggestions,
+                    "key_findings": key_findings
+                }
+            elif isinstance(updated_suggestions, dict) and 'suggestions' in updated_suggestions:
+                return updated_suggestions
+            else:
+                logger.warning(f"Unexpected update suggestion format: {updated_suggestions}")
+                return {"suggestions": self._generate_generic_suggestions(namespace, previous_findings)}
+                
+        except Exception as e:
+            logger.error(f"Error updating suggestions: {e}")
+            return {"suggestions": self._generate_generic_suggestions(namespace, previous_findings)}
