@@ -956,7 +956,9 @@ identified root causes, and recommended actions to resolve the issues.
             for analysis_id, analysis in self.analyses.items()
         ]
         
-    def process_user_query(self, query: str, namespace: str, context: Optional[str] = None, previous_findings: Optional[List[str]] = None) -> Dict[str, Any]:
+    def process_user_query(self, query: str, namespace: str, context: Optional[str] = None, 
+                       previous_findings: Optional[List[str]] = None,
+                       investigation_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Process a user query in natural language and generate a response with suggested next actions.
         
@@ -965,6 +967,7 @@ identified root causes, and recommended actions to resolve the issues.
             namespace: Kubernetes namespace to analyze
             context: Kubernetes context (optional)
             previous_findings: List of key findings from previous interactions (optional)
+            investigation_id: ID of the current investigation for logging (optional)
             
         Returns:
             dict: Response data including text response and suggested actions
@@ -1132,7 +1135,19 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
         
         # Get the response from the LLM
         try:
-            response_json = self.llm_client.generate_structured_output(prompt)
+            # Update the LLM client to support the prompt logging functionality
+            if hasattr(self.llm_client, 'generate_completion') and investigation_id:
+                # If the LLM client supports our extended logging interface
+                response_json = self.llm_client.generate_structured_output(
+                    prompt=prompt,
+                    user_query=query,
+                    investigation_id=investigation_id,
+                    accumulated_findings=previous_findings,
+                    namespace=namespace
+                )
+            else:
+                # Fallback to regular call without logging
+                response_json = self.llm_client.generate_structured_output(prompt)
             
             # Ensure we have the required fields
             if not isinstance(response_json, dict):

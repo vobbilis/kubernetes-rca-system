@@ -162,7 +162,11 @@ class LLMClient:
     
     def generate_structured_output(self, prompt: Union[str, List[Dict]], 
                                  model: Optional[str] = None,
-                                 temperature: float = 0.2) -> Dict[str, Any]:
+                                 temperature: float = 0.2,
+                                 user_query: Optional[str] = None,
+                                 investigation_id: Optional[str] = None,
+                                 accumulated_findings: Optional[List[str]] = None,
+                                 namespace: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate structured output in JSON format from the LLM.
         
@@ -182,6 +186,14 @@ class LLMClient:
                 else:
                     messages = prompt
                 
+                # Get formatted prompt for logging
+                formatted_prompt = ""
+                for msg in messages:
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    formatted_prompt += f"{role.upper()}: {content}\n\n"
+                
+                # Make the API call
                 response = self.openai_client.chat.completions.create(
                     model=model or self.default_model,
                     messages=messages,
@@ -191,6 +203,44 @@ class LLMClient:
                 )
                 
                 content = response.choices[0].message.content
+                
+                # Get the prompt logger
+                prompt_logger = get_logger()
+                
+                # Log the prompt and response
+                if prompt_logger and user_query:
+                    try:
+                        parsed_json = json.loads(content)
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=parsed_json,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "openai",
+                                "model": model or self.default_model,
+                                "temperature": temperature,
+                                "formatted": True
+                            }
+                        )
+                    except json.JSONDecodeError:
+                        # Still log even if JSON parsing fails
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=content,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "openai",
+                                "model": model or self.default_model,
+                                "temperature": temperature,
+                                "parse_error": True
+                            }
+                        )
                 
                 # Parse the JSON response
                 try:
@@ -235,6 +285,10 @@ class LLMClient:
                 if isinstance(user_content, str):
                     user_content += "\n\nPlease provide your response in valid JSON format."
                 
+                # Format prompt for logging
+                formatted_prompt = f"SYSTEM: {system or 'Not specified'}\n\nUSER: {user_content}"
+                
+                # Make API call
                 response = self.anthropic_client.messages.create(
                     model=model or self.default_claude_model,
                     max_tokens=2000,
@@ -249,6 +303,44 @@ class LLMClient:
                 )
                 
                 content = response.content[0].text
+                
+                # Get the prompt logger
+                prompt_logger = get_logger()
+                
+                # Log the prompt and response
+                if prompt_logger and user_query:
+                    try:
+                        parsed_json = json.loads(content)
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=parsed_json,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "anthropic",
+                                "model": model or self.default_claude_model,
+                                "temperature": temperature,
+                                "formatted": True
+                            }
+                        )
+                    except json.JSONDecodeError:
+                        # Still log even if JSON parsing fails
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=content,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "anthropic",
+                                "model": model or self.default_claude_model,
+                                "temperature": temperature,
+                                "parse_error": True
+                            }
+                        )
                 
                 # Parse the JSON response
                 try:
