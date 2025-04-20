@@ -1,0 +1,49 @@
+{
+  "id": "ebce9d6a-963e-43ec-8068-203daf476586",
+  "title": "New Investigation (2025-04-20 00:13)",
+  "namespace": "default",
+  "context": "",
+  "created_at": "20250420_001302",
+  "updated_at": "20250420_001317",
+  "summary": "",
+  "status": "in_progress",
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Investigation started at 2025-04-20 00:13:02",
+      "timestamp": "20250420_001302"
+    }
+  ],
+  "evidence": {},
+  "agent_findings": {},
+  "next_actions": [
+    {
+      "text": "Run a comprehensive analysis of your namespace",
+      "priority": "HIGH",
+      "reasoning": "A comprehensive analysis will help identify patterns across all resources and signals in your cluster.",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "comprehensive"
+      }
+    },
+    {
+      "text": "Check for problematic pods",
+      "priority": "HIGH",
+      "reasoning": "Problematic pods are often the first indicator of underlying issues. Identifying them will help focus the investigation.",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "resources"
+      }
+    },
+    {
+      "text": "View recent events",
+      "priority": "HIGH",
+      "reasoning": "Recent events provide important context about changes and issues in the cluster that might be related to the problem.",
+      "action": {
+        "type": "check_events",
+        "field_selector": "type!=Normal"
+      }
+    }
+  ],
+  "accumulated_findings": []
+}
