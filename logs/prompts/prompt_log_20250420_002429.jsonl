@@ -1,0 +1,5 @@
+2025-04-20 00:24:29,099 - prompt_logger - INFO - Initialized prompt logger. Logs will be written to logs/prompts/prompt_log_20250420_002429.jsonl
+{"timestamp": 1745108669.0997648, "formatted_time": "2025-04-20 00:24:29", "investigation_id": "test-investigation-id", "user_query": "What's wrong with my Kubernetes cluster?", "prompt": "Please analyze the Kubernetes cluster state", "response": "There appear to be several issues with your cluster", "namespace": "default", "accumulated_findings": ["Finding 1", "Finding 2"], "additional_context": {"model": "test-model", "temperature": 0.2}}
+2025-04-20 00:24:29,099 - prompt_logger - INFO - Logged interaction for investigation test-investigation-id
+{"timestamp": 1745108669.0999439, "formatted_time": "2025-04-20 00:24:29", "event_type": "test", "description": "Test event", "details": {"test_key": "test_value"}}
+2025-04-20 00:24:29,100 - prompt_logger - INFO - Logged system event: test
