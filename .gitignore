@@ -31,7 +31,6 @@ venv.bak/
 
 # Kubernetes configs
 kube-config/
-!kube-config/safe-kubeconfig.yaml
 kind-config/
 
 # Logs (except the directory structure)
