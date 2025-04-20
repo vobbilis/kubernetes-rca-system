@@ -1,0 +1,53 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Kubernetes configs
+kube-config/
+!kube-config/safe-kubeconfig.yaml
+
+# Logs (except the directory structure)
+logs/*
+!logs/
+!logs/archive/
+!logs/prompts/
+logs/archive/*
+logs/prompts/*
+!logs/archive/.gitkeep
+!logs/prompts/.gitkeep
+
+# IDE configs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Streamlit extras
+.streamlit/secrets.toml
