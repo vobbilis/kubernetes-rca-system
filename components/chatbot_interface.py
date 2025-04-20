@@ -922,9 +922,26 @@ def render_chatbot_interface(
                 # Use modulo to distribute buttons across columns
                 col_index = i % num_columns
                 
-                # Create a button for the suggestion in the appropriate column
+                # Get priority and reasoning if available
+                priority = suggestion.get('priority', 'LOW')
+                reasoning = suggestion.get('reasoning', '')
+                
+                # Create a button for the suggestion in the appropriate column with priority indicator
                 with cols[col_index]:
-                    if st.button(suggestion_text, key=f"suggestion_{i}"):
+                    # Add priority indicator icons
+                    if priority == 'CRITICAL':
+                        priority_icon = "🔴 "  # Red circle for critical
+                    elif priority == 'HIGH': 
+                        priority_icon = "🟠 "  # Orange circle for high
+                    else:
+                        priority_icon = "🟢 "  # Green circle for low/normal
+                    
+                    # Add tooltip with reasoning if available
+                    if reasoning:
+                        button_label = f"{priority_icon}{suggestion_text}"
+                        st.markdown(f"<div title='{reasoning}'>{button_label}</div>", unsafe_allow_html=True)
+                    
+                    if st.button(f"{priority_icon}{suggestion_text}", key=f"suggestion_{i}", help=reasoning):
                         # Handle different suggestion types based on the type
                         if suggestion_type == 'run_agent':
                             agent_type = suggestion_action.get('agent_type', 'unknown')
