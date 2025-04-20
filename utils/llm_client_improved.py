@@ -2,12 +2,16 @@ import os
 import json
 import sys
 import logging
+import time
 from typing import Dict, List, Any, Optional, Union
 
 from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 from anthropic import Anthropic
 from anthropic.types import Message
+
+# Import the prompt logger
+from utils.prompt_logger import get_logger
 
 # Set up logging
 logging.basicConfig(level=logging.INFO,
@@ -273,7 +277,11 @@ class LLMClient:
     def generate_completion(self, prompt: Union[str, List[Dict]], 
                            model: Optional[str] = None,
                            temperature: float = 0.2,
-                           max_tokens: int = 2000) -> str:
+                           max_tokens: int = 2000,
+                           investigation_id: Optional[str] = None,
+                           user_query: Optional[str] = None,
+                           accumulated_findings: Optional[List[str]] = None,
+                           namespace: Optional[str] = None) -> str:
         """
         Generate a completion for the given prompt.
         
@@ -282,12 +290,19 @@ class LLMClient:
             model: Model name to use (if None, use the default model)
             temperature: Sampling temperature
             max_tokens: Maximum number of tokens to generate
+            investigation_id: Optional ID of the current investigation for logging
+            user_query: Original user query for logging
+            accumulated_findings: List of findings from previous interactions
+            namespace: Kubernetes namespace for context
             
         Returns:
             Generated completion text
         """
         if model is None:
             model = self.default_model
+            
+        # Get the prompt logger
+        prompt_logger = get_logger()
         
         if self.provider == "openai":
             # Handle different prompt types
@@ -297,6 +312,14 @@ class LLMClient:
                 messages = prompt
             
             try:
+                # Get formatted prompt for logging
+                formatted_prompt = ""
+                for msg in messages:
+                    role = msg.get("role", "unknown")
+                    content = msg.get("content", "")
+                    formatted_prompt += f"{role.upper()}: {content}\n\n"
+                
+                # Make the API call
                 response = self.openai_client.chat.completions.create(
                     model=model,
                     messages=messages,
@@ -304,7 +327,26 @@ class LLMClient:
                     max_tokens=max_tokens
                 )
                 
-                return response.choices[0].message.content
+                response_content = response.choices[0].message.content
+                
+                # Log the prompt and response
+                if prompt_logger and user_query:
+                    prompt_logger.log_interaction(
+                        user_query=user_query or "Not provided",
+                        prompt=formatted_prompt,
+                        response=response_content,
+                        investigation_id=investigation_id,
+                        accumulated_findings=accumulated_findings,
+                        namespace=namespace,
+                        additional_context={
+                            "provider": "openai",
+                            "model": model,
+                            "temperature": temperature,
+                            "max_tokens": max_tokens
+                        }
+                    )
+                
+                return response_content
             
             except Exception as e:
                 logger.error(f"OpenAI API error: {e}")
@@ -350,6 +392,10 @@ class LLMClient:
                 user_content = prompt
                 
                 try:
+                    # Format prompt for logging
+                    formatted_prompt = f"SYSTEM: {system_content}\n\nUSER: {user_content}"
+                    
+                    # Make API call
                     response = self.anthropic_client.messages.create(
                         model=model,
                         system=system_content,
@@ -358,7 +404,26 @@ class LLMClient:
                         max_tokens=max_tokens
                     )
                     
-                    return response.content[0].text
+                    response_content = response.content[0].text
+                    
+                    # Log the prompt and response
+                    if prompt_logger and user_query:
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=response_content,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "anthropic",
+                                "model": model,
+                                "temperature": temperature,
+                                "max_tokens": max_tokens
+                            }
+                        )
+                    
+                    return response_content
                 
                 except Exception as e:
                     logger.error(f"Anthropic API error: {e}")
@@ -408,6 +473,14 @@ class LLMClient:
                         messages.append({"role": msg["role"], "content": msg["content"]})
                 
                 try:
+                    # Format prompt for logging
+                    formatted_prompt = f"SYSTEM: {system_content}\n\n"
+                    for msg in messages:
+                        role = msg.get("role", "unknown")
+                        content = msg.get("content", "")
+                        formatted_prompt += f"{role.upper()}: {content}\n\n"
+                    
+                    # Make API call
                     response = self.anthropic_client.messages.create(
                         model=model,
                         system=system_content,
@@ -416,7 +489,26 @@ class LLMClient:
                         max_tokens=max_tokens
                     )
                     
-                    return response.content[0].text
+                    response_content = response.content[0].text
+                    
+                    # Log the prompt and response
+                    if prompt_logger and user_query:
+                        prompt_logger.log_interaction(
+                            user_query=user_query or "Not provided",
+                            prompt=formatted_prompt,
+                            response=response_content,
+                            investigation_id=investigation_id,
+                            accumulated_findings=accumulated_findings,
+                            namespace=namespace,
+                            additional_context={
+                                "provider": "anthropic",
+                                "model": model,
+                                "temperature": temperature,
+                                "max_tokens": max_tokens
+                            }
+                        )
+                    
+                    return response_content
                 
                 except Exception as e:
                     logger.error(f"Anthropic API error: {e}")
