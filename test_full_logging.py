@@ -19,9 +19,8 @@ def main():
     print(f"Test investigation ID: {investigation_id}")
     
     # Create the necessary components
-    llm_client = LLMClient(provider="anthropic")
-    k8s_client = K8sClient(kubeconfig_path="/home/runner/workspace/kube-config/safe-kubeconfig.yaml")
-    coordinator = MCPCoordinator(llm_client=llm_client, k8s_client=k8s_client)
+    k8s_client = K8sClient()  # K8sClient automatically finds the kubeconfig
+    coordinator = MCPCoordinator(k8s_client, provider="anthropic")
     
     # Simulate a user query
     user_query = "What's wrong with my Kubernetes cluster?"
