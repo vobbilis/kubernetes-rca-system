@@ -177,13 +177,67 @@ class MCPCoordinator:
                 "bullets": event_bullets
             })
         
+        # Generate key findings for context carrying between iterations
+        key_findings = []
+        
+        # Add most critical pod issues to key findings
+        if problematic_pods:
+            # Sort pods by criticality (status and restart count)
+            sorted_pods = []
+            for pod in problematic_pods:
+                criticality_score = 0
+                status = pod.get("status", "Unknown")
+                
+                # Assign scores based on status severity
+                if status == "CrashLoopBackOff":
+                    criticality_score += 10
+                elif status == "Error" or status == "Failed":
+                    criticality_score += 8
+                elif status == "ImagePullBackOff":
+                    criticality_score += 6
+                elif status == "Pending" and pod.get("containers", []):
+                    # Check if there are container restart counts
+                    restart_total = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                    criticality_score += min(5, restart_total)
+                
+                # Add the pod with its score
+                sorted_pods.append((pod, criticality_score))
+            
+            # Sort by criticality score
+            sorted_pods.sort(key=lambda x: x[1], reverse=True)
+            
+            # Add the most critical pods to key findings
+            for pod, score in sorted_pods[:2]:  # Limit to top 2 most critical
+                pod_name = pod.get("name", "unknown")
+                status = pod.get("status", "Unknown")
+                restart_total = sum([c.get("restartCount", 0) for c in pod.get("containers", [])])
+                
+                # Create a detailed finding with specific information
+                if restart_total > 0:
+                    key_findings.append(f"Pod {pod_name} is in {status} state with {restart_total} restarts")
+                else:
+                    key_findings.append(f"Pod {pod_name} is in {status} state")
+        
+        # Add key event information if available
+        if recent_events:
+            # Filter for warning and error events
+            critical_events = [e for e in recent_events if e.get("type") == "Warning" 
+                              or "Error" in e.get("reason", "")]
+            
+            # Add up to 2 critical events
+            for event in critical_events[:2]:
+                reason = event.get("reason", "Unknown")
+                object_name = event.get("involved_object", "unknown")
+                key_findings.append(f"{reason} event detected on {object_name}")
+        
         # Create the complete structured response
         return {
             "response_data": {
                 "points": points,
                 "sections": sections
             },
-            "summary": summary
+            "summary": summary,
+            "key_findings": key_findings
         }
     
     def init_analysis(self, config: Dict[str, Any]) -> str:
@@ -963,6 +1017,11 @@ identified root causes, and recommended actions to resolve the issues.
         except Exception as e:
             pass  # Continue even if there's an error in gathering information
         
+        # Obtain previous context if available from session storage
+        previous_findings = []
+        # Here we would normally retrieve previous key findings from a database or session state
+        # For now we'll use the current findings we generate in this query
+        
         # Create a prompt for the LLM with enhanced context
         prompt = f"""
 You are an AI assistant specialized in Kubernetes troubleshooting and root cause analysis. 
@@ -976,6 +1035,13 @@ CLUSTER STATE:
 - Total pods in namespace: {len(pod_statuses)}
 - Problematic pods (not in 'Running' state): {len(problematic_pods)}
 """
+
+        # Add key findings from previous interactions if available
+        if previous_findings:
+            prompt += "\nKEY FINDINGS FROM PREVIOUS ANALYSIS:\n"
+            for i, finding in enumerate(previous_findings, 1):
+                prompt += f"{i}. {finding}\n"
+            prompt += "\nUse these key findings to focus and narrow your investigation."
 
         # Add problematic pod details if any
         if problematic_pods:
