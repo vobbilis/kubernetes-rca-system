@@ -289,17 +289,22 @@ class LLMClient:
                 formatted_prompt = f"SYSTEM: {system or 'Not specified'}\n\nUSER: {user_content}"
                 
                 # Make API call
+                # Check if system is a string, otherwise use None
+                system_prompt = system if isinstance(system, str) else None
+                
+                messages_payload = [
+                    {
+                        "role": "user",
+                        "content": user_content
+                    }
+                ]
+                
                 response = self.anthropic_client.messages.create(
                     model=model or self.default_claude_model,
                     max_tokens=2000,
                     temperature=temperature,
-                    system=system,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": user_content
-                        }
-                    ]
+                    system=system_prompt,
+                    messages=messages_payload
                 )
                 
                 content = response.content[0].text
@@ -488,10 +493,15 @@ class LLMClient:
                     formatted_prompt = f"SYSTEM: {system_content}\n\nUSER: {user_content}"
                     
                     # Make API call
+                    # Ensure system_content is a string or None
+                    system_prompt = system_content if isinstance(system_content, str) else None
+                    
+                    messages_payload = [{"role": "user", "content": user_content}]
+                    
                     response = self.anthropic_client.messages.create(
                         model=model,
-                        system=system_content,
-                        messages=[{"role": "user", "content": user_content}],
+                        system=system_prompt,
+                        messages=messages_payload,
                         temperature=temperature,
                         max_tokens=max_tokens
                     )
@@ -573,9 +583,12 @@ class LLMClient:
                         formatted_prompt += f"{role.upper()}: {content}\n\n"
                     
                     # Make API call
+                    # Ensure system_content is a string or None
+                    system_prompt = system_content if isinstance(system_content, str) else None
+                    
                     response = self.anthropic_client.messages.create(
                         model=model,
-                        system=system_content,
+                        system=system_prompt,
                         messages=messages,
                         temperature=temperature,
                         max_tokens=max_tokens
