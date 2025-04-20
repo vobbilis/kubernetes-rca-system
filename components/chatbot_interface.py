@@ -931,17 +931,30 @@ def render_chatbot_interface(
                     # Add priority indicator icons
                     if priority == 'CRITICAL':
                         priority_icon = "🔴 "  # Red circle for critical
+                        priority_color = "#FF4B4B"  # Red background for critical
                     elif priority == 'HIGH': 
                         priority_icon = "🟠 "  # Orange circle for high
+                        priority_color = "#FFA500"  # Orange background for high
                     else:
                         priority_icon = "🟢 "  # Green circle for low/normal
+                        priority_color = "#00CCA0"  # Green background for low
                     
-                    # Add tooltip with reasoning if available
+                    # Create a container for better styling
+                    suggestion_container = st.container()
+                    
+                    # Display reasoning above the button if available
                     if reasoning:
-                        button_label = f"{priority_icon}{suggestion_text}"
-                        st.markdown(f"<div title='{reasoning}'>{button_label}</div>", unsafe_allow_html=True)
+                        suggestion_container.markdown(f"""
+                        <div style="font-size: 0.7em; color: #666; margin-bottom: 3px; 
+                                   padding: 3px; border-left: 3px solid {priority_color};">
+                            {reasoning}
+                        </div>
+                        """, unsafe_allow_html=True)
                     
-                    if st.button(f"{priority_icon}{suggestion_text}", key=f"suggestion_{i}", help=reasoning):
+                    # Create the actual button with priority icon
+                    if suggestion_container.button(f"{priority_icon}{suggestion_text}", 
+                                                  key=f"suggestion_{i}",
+                                                  help=reasoning):
                         # Handle different suggestion types based on the type
                         if suggestion_type == 'run_agent':
                             agent_type = suggestion_action.get('agent_type', 'unknown')
