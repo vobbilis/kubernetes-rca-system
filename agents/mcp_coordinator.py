@@ -1060,6 +1060,12 @@ CLUSTER STATE:
             for i, event in enumerate(recent_events, 1):
                 prompt += f"{i}. {event['reason']} on {event['involved_object']}: {event['message']}\n"
         
+        # Include previous findings if available
+        if previous_findings and len(previous_findings) > 0:
+            prompt += "\nPREVIOUS FINDINGS:\n"
+            for i, finding in enumerate(previous_findings, 1):
+                prompt += f"{i}. {finding}\n"
+                
         prompt += """
 INSTRUCTIONS:
 Even if the user's question is vague or general, please:
@@ -1069,6 +1075,7 @@ Even if the user's question is vague or general, please:
 4. For each problematic resource, specify the exact count and specific error state (e.g., "3 of 10 pods in CrashLoopBackOff")
 5. Suggest 3-5 specific next actions the user could take to investigate or resolve identified issues
 6. For each action, specify the type of action (run_agent, check_resource, check_logs, check_events, query)
+7. Build on previous findings (if provided) and use them to provide more targeted analysis
 
 IMPORTANT FORMAT REQUIREMENTS:
 - Create a one-line summary that includes the total number of resources and problems
@@ -1079,6 +1086,7 @@ IMPORTANT FORMAT REQUIREMENTS:
 - Keep technical terms precise and include the exact error messages
 - Never use vague quantifiers like "several", "multiple", "some" - always provide exact numbers
 - Format all response points as a professional monitoring output focused on precision and clarity
+- When making suggestions, reference relevant previous findings to show continuity in analysis
 
 Return your response in JSON format with these fields:
 - response_data: An object containing structured response data with:
@@ -1495,6 +1503,10 @@ If the user asked a general question like "what's wrong" or "help me troubleshoo
         selected_action = selected_suggestion.get("action", {})
         action_type = selected_action.get("type", "unknown")
         
+        # Initialize previous findings if not provided
+        if previous_findings is None:
+            previous_findings = []
+            
         # Create a prompt for the LLM to generate new suggestions with priorities and reasoning
         prompt = f"""
 Based on the user's selection of the action "{selected_suggestion.get('text', 'unknown action')}" (type: {action_type}), 
@@ -1503,6 +1515,15 @@ please suggest 3-4 new follow-up actions that would be logical next steps in the
 This is a root cause analysis process where we're trying to find a needle in a haystack. 
 The investigation should get progressively narrower with each step, focusing on the most likely causes
 based on information gathered in previous steps.
+"""
+
+        # Add previous findings to provide context
+        if previous_findings and len(previous_findings) > 0:
+            prompt += "\nKEY FINDINGS SO FAR:\n"
+            for i, finding in enumerate(previous_findings, 1):
+                prompt += f"{i}. {finding}\n"
+                
+        prompt += """
 
 Return your suggestions as a JSON array with these fields for each suggestion:
 - text: The text to show the user for this suggestion (be concise but descriptive)
