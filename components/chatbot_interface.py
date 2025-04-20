@@ -426,11 +426,13 @@ def render_chatbot_interface(
         # Generate response with spinner
         with st.spinner("Analyzing..."):
             # Get the response from the coordinator, passing previous findings for context
+            # Include investigation_id for proper prompt logging
             response = coordinator.process_user_query(
                 query=user_input,
                 namespace=st.session_state.get('selected_namespace', 'default'),
                 context=st.session_state.get('selected_context', None),
-                previous_findings=st.session_state.get('accumulated_findings', [])
+                previous_findings=st.session_state.get('accumulated_findings', []),
+                investigation_id=st.session_state.get('current_investigation_id')
             )
             
             # Format and add assistant response to history
@@ -523,7 +525,8 @@ def render_chatbot_interface(
                 with st.spinner("Generating investigation summary..."):
                     summary_response = coordinator.generate_summary_from_query(
                         query=user_input,
-                        namespace=st.session_state.get('selected_namespace', 'default')
+                        namespace=st.session_state.get('selected_namespace', 'default'),
+                        investigation_id=investigation_id
                     )
                     if summary_response and 'summary' in summary_response:
                         db_handler.update_summary(

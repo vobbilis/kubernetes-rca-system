@@ -765,13 +765,15 @@ Format your response as follows:
                 "raw_findings": all_findings
             }
     
-    def generate_summary_from_query(self, query: str, namespace: str = "default") -> Dict[str, Any]:
+    def generate_summary_from_query(self, query: str, namespace: str = "default", 
+                         investigation_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate an investigation summary based on the user's first query.
         
         Args:
             query: The user's initial question or query
             namespace: The Kubernetes namespace being analyzed
+            investigation_id: Optional ID of the current investigation for logging
             
         Returns:
             Dictionary with the generated summary
@@ -803,12 +805,29 @@ to remind the user what we're trying to accomplish.
 """
         
         try:
-            # Get summary from LLM
-            summary_result = self.llm_client.analyze(
-                context={"problem_description": prompt},
-                tools=[],
-                system_prompt=system_prompt
-            )
+            # Check if the LLM client supports our extended logging interface
+            if hasattr(self.llm_client, 'generate_completion') and investigation_id:
+                # Use the generate_completion method which supports logging
+                formatted_prompt = f"{system_prompt}\n\n{prompt}"
+                summary_text = self.llm_client.generate_completion(
+                    prompt=formatted_prompt,
+                    user_query=query,
+                    investigation_id=investigation_id,
+                    namespace=namespace
+                )
+                
+                # For backward compatibility with the previous implementation
+                summary_result = {
+                    "final_analysis": summary_text,
+                    "reasoning_steps": []
+                }
+            else:
+                # Fallback to the original analyze method
+                summary_result = self.llm_client.analyze(
+                    context={"problem_description": prompt},
+                    tools=[],
+                    system_prompt=system_prompt
+                )
             
             summary = summary_result.get("final_analysis", "")
             
