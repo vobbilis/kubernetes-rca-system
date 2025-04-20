@@ -92,7 +92,7 @@ def get_initial_suggestions():
     Returns a list of initial suggestions to show when a new investigation is started.
     
     Returns:
-        List of suggestion objects with text and action keys
+        List of suggestion objects with text, action, priority, and reasoning keys
     """
     return [
         {
@@ -100,35 +100,45 @@ def get_initial_suggestions():
             "action": {
                 "type": "query",
                 "query": "Check the overall health of my Kubernetes cluster and show me any issues"
-            }
+            },
+            "priority": "HIGH",
+            "reasoning": "Performing a general health check is the best first step to identify any immediate issues"
         },
         {
             "text": "What services are running in my cluster?",
             "action": {
                 "type": "query",
                 "query": "List all services running in my Kubernetes cluster and their status"
-            }
+            },
+            "priority": "NORMAL",
+            "reasoning": "Understanding what services are running gives context for any further investigation"
         },
         {
             "text": "Are any of my applications slow?",
             "action": {
                 "type": "query",
                 "query": "Identify any applications or services that have performance issues or high latency"
-            }
+            },
+            "priority": "HIGH",
+            "reasoning": "Performance issues often indicate underlying problems that need attention"
         },
         {
             "text": "Show failed pods",
             "action": {
                 "type": "query",
                 "query": "List all failed or problematic pods and explain why they're failing"
-            }
+            },
+            "priority": "CRITICAL",
+            "reasoning": "Failed pods directly impact service availability and require immediate attention"
         },
         {
             "text": "Analyze resource usage",
             "action": {
                 "type": "run_agent",
                 "agent_type": "resources"
-            }
+            },
+            "priority": "NORMAL",
+            "reasoning": "Resource constraints often cause many Kubernetes issues and should be checked early"
         }
     ]
 
@@ -904,57 +914,53 @@ def render_chatbot_interface(
     # Render suggested actions in the middle container
     with suggestions_container:
         if st.session_state.current_suggestions:
-            # No need for divider or subheader as they're built into the box structure now
+            st.subheader("Suggested Next Actions")
             
-            # Calculate number of columns based on the number of suggestions
-            num_suggestions = len(st.session_state.current_suggestions)
-            num_columns = min(3, num_suggestions)  # Maximum 3 columns to ensure buttons are readable
-            
-            # Create columns for horizontal layout
-            cols = st.columns(num_columns)
-            
-            # Display each suggestion as a button in the appropriate column
+            # Display each suggestion as a styled card
             for i, suggestion in enumerate(st.session_state.current_suggestions):
                 suggestion_text = suggestion.get('text', f"Suggestion {i+1}")
                 suggestion_action = suggestion.get('action', {})
                 suggestion_type = suggestion_action.get('type', 'unknown')
                 
-                # Use modulo to distribute buttons across columns
-                col_index = i % num_columns
-                
                 # Get priority and reasoning if available
                 priority = suggestion.get('priority', 'LOW')
                 reasoning = suggestion.get('reasoning', '')
                 
-                # Create a button for the suggestion in the appropriate column with priority indicator
-                with cols[col_index]:
-                    # Add priority indicator icons
-                    if priority == 'CRITICAL':
-                        priority_icon = "🔴 "  # Red circle for critical
-                        priority_color = "#FF4B4B"  # Red background for critical
-                    elif priority == 'HIGH': 
-                        priority_icon = "🟠 "  # Orange circle for high
-                        priority_color = "#FFA500"  # Orange background for high
-                    else:
-                        priority_icon = "🟢 "  # Green circle for low/normal
-                        priority_color = "#00CCA0"  # Green background for low
-                    
-                    # Create a container for better styling
-                    suggestion_container = st.container()
-                    
-                    # Display reasoning above the button if available
-                    if reasoning:
-                        suggestion_container.markdown(f"""
-                        <div style="font-size: 0.7em; color: #666; margin-bottom: 3px; 
-                                   padding: 3px; border-left: 3px solid {priority_color};">
-                            {reasoning}
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # Create the actual button with priority icon
-                    if suggestion_container.button(f"{priority_icon}{suggestion_text}", 
-                                                  key=f"suggestion_{i}",
-                                                  help=reasoning):
+                # Define colors and icons based on priority
+                if priority == 'CRITICAL':
+                    priority_icon = "🔴"  # Red circle for critical
+                    priority_color = "#FF4B4B"  # Red background for critical
+                    priority_text = "CRITICAL"
+                elif priority == 'HIGH': 
+                    priority_icon = "🟠"  # Orange circle for high
+                    priority_color = "#FFA500"  # Orange background for high
+                    priority_text = "HIGH"
+                else:
+                    priority_icon = "🟢"  # Green circle for low/normal
+                    priority_color = "#00CCA0"  # Green background for low
+                    priority_text = "LOW"
+                
+                # Create a styled card with all information
+                card_html = f"""
+                <div style="margin-bottom: 15px; border: 1px solid #eee; border-radius: 8px; 
+                           border-left: 5px solid {priority_color}; padding: 10px; background-color: white;">
+                    <div style="display: flex; align-items: center; margin-bottom: 5px;">
+                        <span style="font-size: 18px; margin-right: 8px;">{priority_icon}</span>
+                        <span style="font-weight: bold;">{suggestion_text}</span>
+                        <span style="margin-left: auto; font-size: 0.7em; padding: 2px 6px; background-color: {priority_color}; 
+                                     color: white; border-radius: 10px;">{priority_text}</span>
+                    </div>
+                    <div style="font-size: 0.8em; color: #666; margin-bottom: 5px; padding-left: 26px;">
+                        {reasoning if reasoning else "No additional context available"}
+                    </div>
+                </div>
+                """
+                
+                # Display the card and create a button below it
+                st.markdown(card_html, unsafe_allow_html=True)
+                
+                # Create the action button separately
+                if st.button(f"Run this action", key=f"suggestion_{i}"):
                         # Handle different suggestion types based on the type
                         if suggestion_type == 'run_agent':
                             agent_type = suggestion_action.get('agent_type', 'unknown')
