@@ -1,0 +1,88 @@
+{
+  "id": "1827d8b2-d846-4487-94a4-1ed0232223d7",
+  "title": "New Investigation (2025-04-20 01:53)",
+  "namespace": "default",
+  "context": "",
+  "created_at": "20250420_015343",
+  "updated_at": "20250420_015437",
+  "summary": "",
+  "status": "in_progress",
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Investigation started at 2025-04-20 01:53:43",
+      "timestamp": "20250420_015343"
+    },
+    {
+      "role": "user",
+      "content": "I want to check the health of my cluster",
+      "timestamp": "20250420_015348"
+    },
+    {
+      "role": "assistant",
+      "content": "Error: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'system: Input should be a valid list'}}",
+      "timestamp": "20250420_015348"
+    },
+    {
+      "role": "user",
+      "content": "I want to analyze recent events",
+      "timestamp": "20250420_015426"
+    },
+    {
+      "role": "assistant",
+      "content": "The Kubernetes events analysis was unsuccessful due to a 'type' error that occurred during the MCPEventsAgent execution at 2025-04-20T01:54:35. No findings were generated, and the analysis could not be completed, suggesting there may be an issue with the event data format or the analysis agent configuration.",
+      "timestamp": "20250420_015437"
+    }
+  ],
+  "evidence": {
+    "run_agent": [
+      {
+        "data": {
+          "error": "'type'",
+          "findings": [],
+          "reasoning_steps": [
+            {
+              "observation": "Error occurred during MCPEventsAgent analysis: 'type'",
+              "conclusion": "Unable to complete analysis due to an error",
+              "agent": "MCPEventsAgent",
+              "timestamp": "2025-04-20T01:54:35.375198"
+            }
+          ],
+          "summary": "The Kubernetes events analysis was unsuccessful due to a 'type' error that occurred during the MCPEventsAgent execution at 2025-04-20T01:54:35. No findings were generated, and the analysis could not be completed, suggesting there may be an issue with the event data format or the analysis agent configuration."
+        },
+        "timestamp": "20250420_015437"
+      }
+    ]
+  },
+  "agent_findings": {},
+  "next_actions": [
+    {
+      "text": "Check pod health",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "metrics"
+      },
+      "priority": "HIGH",
+      "reasoning": "Checking pod health metrics can reveal resource constraints or performance issues"
+    },
+    {
+      "text": "Analyze recent events",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "events"
+      },
+      "priority": "HIGH",
+      "reasoning": "Recent Kubernetes events often contain important clues about failures or state changes"
+    },
+    {
+      "text": "Check for failing pods",
+      "action": {
+        "type": "query",
+        "query": "Show me any pods that are failing or in a non-ready state in the default namespace"
+      },
+      "priority": "CRITICAL",
+      "reasoning": "Failed pods directly impact service availability and require immediate attention"
+    }
+  ],
+  "accumulated_findings": []
+}

@@ -164,6 +164,7 @@ class LLMClient:
                                  model: Optional[str] = None,
                                  temperature: float = 0.2,
                                  user_query: Optional[str] = None,
+                                 system_prompt: Optional[str] = None,
                                  investigation_id: Optional[str] = None,
                                  accumulated_findings: Optional[List[str]] = None,
                                  namespace: Optional[str] = None) -> Dict[str, Any]:
@@ -174,6 +175,11 @@ class LLMClient:
             prompt: Prompt text or list of message dicts
             model: Model to use (optional, defaults to the provider's default model)
             temperature: Sampling temperature (0.0 to 1.0)
+            user_query: Original user query for logging
+            system_prompt: Optional system prompt to set context for the LLM
+            investigation_id: Optional ID of the current investigation for logging
+            accumulated_findings: List of findings from previous interactions
+            namespace: Kubernetes namespace for context
             
         Returns:
             dict: Parsed JSON response
@@ -265,16 +271,21 @@ class LLMClient:
         elif self.provider == "anthropic":
             try:
                 # Format the prompt for Claude
-                system = None
+                system_content = None
                 user_content = prompt
                 
-                if isinstance(prompt, list):
+                # If a system_prompt was explicitly provided, use it
+                if system_prompt is not None:
+                    system_content = system_prompt
+                
+                # Otherwise try to extract from the messages
+                elif isinstance(prompt, list):
                     # Extract system and user messages
                     system_messages = [m for m in prompt if m.get("role") == "system"]
                     user_messages = [m for m in prompt if m.get("role") == "user"]
                     
                     if system_messages:
-                        system = system_messages[0].get("content")
+                        system_content = system_messages[0].get("content")
                     
                     if user_messages:
                         user_content = user_messages[-1].get("content")
@@ -286,11 +297,10 @@ class LLMClient:
                     user_content += "\n\nPlease provide your response in valid JSON format."
                 
                 # Format prompt for logging
-                formatted_prompt = f"SYSTEM: {system or 'Not specified'}\n\nUSER: {user_content}"
+                formatted_prompt = f"SYSTEM: {system_content or 'Not specified'}\n\nUSER: {user_content}"
                 
-                # Make API call
-                # Check if system is a string, otherwise use None
-                system_prompt = system if isinstance(system, str) else None
+                # Make API call - Always pass a string or None to system
+                final_system = system_content if isinstance(system_content, str) else None
                 
                 messages_payload = [
                     {
@@ -303,7 +313,7 @@ class LLMClient:
                     model=model or self.default_claude_model,
                     max_tokens=2000,
                     temperature=temperature,
-                    system=system_prompt,
+                    system=final_system,
                     messages=messages_payload
                 )
                 
@@ -375,6 +385,7 @@ class LLMClient:
                            model: Optional[str] = None,
                            temperature: float = 0.2,
                            max_tokens: int = 2000,
+                           system_prompt: Optional[str] = None,
                            investigation_id: Optional[str] = None,
                            user_query: Optional[str] = None,
                            accumulated_findings: Optional[List[str]] = None,
@@ -387,6 +398,7 @@ class LLMClient:
             model: Model name to use (if None, use the default model)
             temperature: Sampling temperature
             max_tokens: Maximum number of tokens to generate
+            system_prompt: Optional system prompt to set context for the LLM
             investigation_id: Optional ID of the current investigation for logging
             user_query: Original user query for logging
             accumulated_findings: List of findings from previous interactions
