@@ -57,7 +57,8 @@ class DBHandler:
             "conversation": [],
             "evidence": {},
             "agent_findings": {},
-            "next_actions": []
+            "next_actions": [],
+            "accumulated_findings": []  # Initialize accumulated findings
         }
         
         # Save the investigation
@@ -86,9 +87,14 @@ class DBHandler:
         if not investigation:
             return False
         
+        # Ensure accumulated_findings exists for older investigations
+        if "accumulated_findings" not in investigation:
+            investigation["accumulated_findings"] = []
+            
         # Update the investigation data
         for key, value in updates.items():
-            if key in investigation:
+            # Special case for accumulated_findings to handle upgrading older records
+            if key == "accumulated_findings" or key in investigation:
                 investigation[key] = value
         
         # Update the timestamp

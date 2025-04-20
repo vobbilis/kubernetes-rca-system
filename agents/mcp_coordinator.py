@@ -1609,12 +1609,21 @@ Your goal is to help the user find the root cause with minimal steps.
             # Ensure we have valid suggestions
             if isinstance(response_json, list) and len(response_json) > 0:
                 # The LLM returned a direct array of suggestions
-                return {"suggestions": response_json}
+                # Extract key findings from previous findings to maintain context
+                key_findings = previous_findings[-5:] if previous_findings else []
+                return {
+                    "suggestions": response_json,
+                    "key_findings": key_findings
+                }
             elif isinstance(response_json, dict) and "suggestions" in response_json:
                 # The LLM returned a dict with a suggestions key
+                # Ensure key_findings are included in the response
+                if "key_findings" not in response_json and previous_findings:
+                    response_json["key_findings"] = previous_findings[-5:]
                 return response_json
             else:
                 # Invalid response format, return default suggestions with priorities and reasoning
+                key_findings = previous_findings[-5:] if previous_findings else []
                 return {
                     "suggestions": [
                         {
@@ -1644,10 +1653,12 @@ Your goal is to help the user find the root cause with minimal steps.
                                 "field_selector": "type!=Normal"
                             }
                         }
-                    ]
+                    ],
+                    "key_findings": key_findings
                 }
         except Exception as e:
             # Return default suggestions with priorities and reasoning in case of error
+            key_findings = previous_findings[-5:] if previous_findings else []
             return {
                 "suggestions": [
                     {
@@ -1677,7 +1688,8 @@ Your goal is to help the user find the root cause with minimal steps.
                             "field_selector": "type!=Normal"
                         }
                     }
-                ]
+                ],
+                "key_findings": key_findings
             }
     
     def run_agent_analysis(self, agent_type: str, namespace: str, context: Optional[str] = None) -> Dict[str, Any]:
