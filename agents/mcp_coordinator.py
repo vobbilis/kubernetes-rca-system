@@ -975,9 +975,206 @@ identified root causes, and recommended actions to resolve the issues.
             for analysis_id, analysis in self.analyses.items()
         ]
         
+    def process_suggestion(self, suggestion_action: Dict[str, Any], namespace: str, context: Optional[str] = None,
+                         previous_findings: Optional[List[str]] = None,
+                         investigation_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Process a suggestion action and generate a specialized response with further suggestions.
+        This method acts as a next step in the iterative investigation process.
+        
+        Args:
+            suggestion_action: The selected suggestion action object
+            namespace: Kubernetes namespace to analyze
+            context: Kubernetes context (optional)
+            previous_findings: List of key findings from previous interactions (optional)
+            investigation_id: ID of the current investigation for logging (optional)
+            
+        Returns:
+            dict: Response data including specialized analysis and further suggested actions
+        """
+        # Extract information from the suggestion action
+        suggestion_type = suggestion_action.get('type', 'unknown')
+        
+        # Run specialized analysis based on the suggestion type
+        if suggestion_type == 'query':
+            # For query suggestions, use the query field as a sub-query
+            sub_query = suggestion_action.get('query', '')
+            if sub_query:
+                # Process this as a regular query but with additional context
+                return self.process_user_query(
+                    query=sub_query,
+                    namespace=namespace,
+                    context=context,
+                    previous_findings=previous_findings,
+                    investigation_id=investigation_id,
+                    is_suggestion_query=True  # Flag that this is a suggestion-driven query
+                )
+        
+        elif suggestion_type == 'run_agent':
+            # For agent-specific suggestions, run the specified agent
+            agent_type = suggestion_action.get('agent_type', '')
+            if agent_type:
+                # Create a temporary analysis for the agent
+                analysis_id = self.init_analysis({
+                    "type": "agent_specific",
+                    "namespace": namespace,
+                    "context": context,
+                    "parameters": {
+                        "agent_type": agent_type,
+                        "previous_findings": previous_findings
+                    }
+                })
+                
+                # Run the appropriate agent analysis
+                agent_results = None
+                if agent_type == 'metrics':
+                    agent_results = self.run_metrics_analysis(analysis_id)
+                elif agent_type == 'logs':
+                    agent_results = self.run_logs_analysis(analysis_id)
+                elif agent_type == 'events':
+                    agent_results = self.run_events_analysis(analysis_id)
+                elif agent_type == 'topology':
+                    agent_results = self.run_topology_analysis(analysis_id)
+                elif agent_type == 'traces':
+                    agent_results = self.run_traces_analysis(analysis_id)
+                elif agent_type == 'resources':
+                    agent_results = self.run_resource_analysis(analysis_id)
+                
+                if agent_results:
+                    # Generate a summary of the agent's findings
+                    summary = self.generate_summary(analysis_id)
+                    
+                    # Generate next steps based on the agent's results
+                    agent_context = {
+                        "agent_type": agent_type,
+                        "agent_results": agent_results,
+                        "namespace": namespace,
+                        "previous_findings": previous_findings or [],
+                        "summary": summary.get("summary", ""),
+                    }
+                    
+                    # Generate response with next steps
+                    return self._generate_agent_specific_response(agent_context, investigation_id)
+        
+        elif suggestion_type == 'check_resource':
+            # For resource-specific suggestions, get and analyze the specific resource
+            resource_type = suggestion_action.get('resource_type', '')
+            resource_name = suggestion_action.get('resource_name', '')
+            
+            if resource_type and resource_name:
+                # Get the resource details
+                try:
+                    resource_details = self.k8s_client.get_resource_details(
+                        resource_type=resource_type,
+                        resource_name=resource_name,
+                        namespace=namespace
+                    )
+                    
+                    # Analyze the resource
+                    return self.analyze_resource(
+                        resource_type=resource_type,
+                        resource_name=resource_name,
+                        resource_details=resource_details,
+                        namespace=namespace,
+                        previous_findings=previous_findings,
+                        investigation_id=investigation_id
+                    )
+                except Exception as e:
+                    return {
+                        "error": f"Error analyzing resource {resource_type}/{resource_name}: {str(e)}"
+                    }
+        
+        # If we don't recognize the suggestion type or it failed, return a generic response
+        return {
+            "response": "I couldn't process that suggestion. Please try a different approach.",
+            "suggestions": self._generate_generic_suggestions(namespace, previous_findings)
+        }
+    
+    def _generate_agent_specific_response(self, agent_context: Dict[str, Any], investigation_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Generate a response based on a specific agent's analysis results.
+        
+        Args:
+            agent_context: Context information about the agent and its results
+            investigation_id: Optional investigation ID for logging
+            
+        Returns:
+            dict: Response with analysis and suggestions
+        """
+        agent_type = agent_context.get("agent_type", "unknown")
+        agent_results = agent_context.get("agent_results", {})
+        namespace = agent_context.get("namespace", "default")
+        
+        # Create a prompt for the LLM to analyze the agent results
+        system_prompt = f"""You are a Kubernetes expert analyzing {agent_type} data for root cause analysis.
+Your task is to analyze the provided data, identify any issues, and suggest next steps.
+Provide a detailed analysis focusing on the most important findings from the {agent_type} agent.
+"""
+        
+        # Prepare the prompt
+        prompt = f"""
+## Agent Results Analysis
+Agent Type: {agent_type}
+Namespace: {namespace}
+
+### Agent Results
+```json
+{json.dumps(agent_results, indent=2)[:4000]}  # Limit to 4000 chars to avoid token limits
+```
+
+Based on these results, please:
+1. Provide a detailed analysis of the {agent_type} data
+2. Identify any issues or anomalies in the data
+3. Explain the potential impact of these issues
+4. Suggest specific next steps to further investigate or fix the identified problems
+
+Format your response as a structured analysis with clear sections for:
+- Key Findings
+- Impact Assessment
+- Recommended Next Steps
+"""
+        
+        try:
+            # Get analysis from LLM
+            analysis_result = self.llm_client.analyze(
+                context={"problem_description": prompt},
+                tools=[],
+                system_prompt=system_prompt,
+                user_query=f"Analyze {agent_type} data", 
+                investigation_id=investigation_id,
+                namespace=namespace
+            )
+            
+            # Generate suggested next actions based on the analysis
+            suggestions = self._generate_suggestions_from_analysis(
+                analysis=analysis_result.get("final_analysis", ""),
+                agent_type=agent_type,
+                namespace=namespace,
+                previous_findings=agent_context.get("previous_findings", [])
+            )
+            
+            # Extract key findings to add to accumulated findings
+            key_findings = self._extract_key_findings(analysis_result.get("final_analysis", ""))
+            
+            return {
+                "response": analysis_result.get("final_analysis", "I couldn't analyze the data properly."),
+                "suggestions": suggestions,
+                "key_findings": key_findings,
+                "agent_type": agent_type,
+                "evidence": agent_results  # Include the evidence for reference
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating agent-specific response: {e}")
+            return {
+                "response": f"I encountered an error while analyzing the {agent_type} data: {str(e)}",
+                "suggestions": self._generate_generic_suggestions(namespace),
+            }
+    
     def process_user_query(self, query: str, namespace: str, context: Optional[str] = None, 
                        previous_findings: Optional[List[str]] = None,
-                       investigation_id: Optional[str] = None) -> Dict[str, Any]:
+                       investigation_id: Optional[str] = None,
+                       is_suggestion_query: bool = False) -> Dict[str, Any]:
         """
         Process a user query in natural language and generate a response with suggested next actions.
         
@@ -987,6 +1184,7 @@ identified root causes, and recommended actions to resolve the issues.
             context: Kubernetes context (optional)
             previous_findings: List of key findings from previous interactions (optional)
             investigation_id: ID of the current investigation for logging (optional)
+            is_suggestion_query: Whether this query is from a suggestion (optional)
             
         Returns:
             dict: Response data including text response and suggested actions
