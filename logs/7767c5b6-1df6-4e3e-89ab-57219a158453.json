@@ -1,0 +1,34 @@
+{
+  "id": "7767c5b6-1df6-4e3e-89ab-57219a158453",
+  "title": "Test Suggestions Update",
+  "namespace": "default",
+  "context": null,
+  "created_at": "20250420_012632",
+  "updated_at": "20250420_012633",
+  "summary": "",
+  "status": "in_progress",
+  "conversation": [],
+  "evidence": {},
+  "agent_findings": {},
+  "next_actions": [
+    {
+      "text": "Run a comprehensive analysis",
+      "priority": "LOW",
+      "reasoning": "A general overview will help establish a baseline for the cluster state.",
+      "action": {
+        "type": "run_agent",
+        "agent_type": "comprehensive"
+      }
+    },
+    {
+      "text": "Check recent warning events",
+      "priority": "LOW",
+      "reasoning": "Reviewing the 5 recent events will provide context for the cluster state.",
+      "action": {
+        "type": "check_events",
+        "field_selector": "type!=Normal"
+      }
+    }
+  ],
+  "accumulated_findings": []
+}
