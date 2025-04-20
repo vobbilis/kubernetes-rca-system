@@ -507,7 +507,7 @@ def render_chatbot_interface(
                 if investigation_id and db_handler:
                     db_handler.update_investigation(
                         investigation_id=investigation_id,
-                        data={'accumulated_findings': st.session_state.accumulated_findings}
+                        updates={'accumulated_findings': st.session_state.accumulated_findings}
                     )
             
             # Generate a summary based on the first question if it's a new investigation
@@ -1096,7 +1096,7 @@ def render_chatbot_interface(
                                 if investigation_id and db_handler:
                                     db_handler.update_investigation(
                                         investigation_id=investigation_id,
-                                        data={'accumulated_findings': st.session_state.accumulated_findings}
+                                        updates={'accumulated_findings': st.session_state.accumulated_findings}
                                     )
                         
                         st.rerun()
