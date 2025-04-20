@@ -13,6 +13,9 @@ def init_chatbot_interface():
     
     if 'user_input' not in st.session_state:
         st.session_state.user_input = ""
+        
+    if 'accumulated_findings' not in st.session_state:
+        st.session_state.accumulated_findings = []
 
 def add_message(role: str, content: str, investigation_id: Optional[str] = None, db_handler = None):
     """
@@ -76,6 +79,13 @@ def load_chat_history(investigation_id: str, db_handler):
     # Load suggested next actions
     if 'next_actions' in investigation:
         st.session_state.current_suggestions = investigation['next_actions']
+        
+    # Load accumulated findings if available
+    if 'accumulated_findings' in investigation:
+        st.session_state.accumulated_findings = investigation['accumulated_findings']
+    else:
+        # Initialize with empty list if not present
+        st.session_state.accumulated_findings = []
 
 def get_initial_suggestions():
     """
@@ -415,11 +425,12 @@ def render_chatbot_interface(
         
         # Generate response with spinner
         with st.spinner("Analyzing..."):
-            # Get the response from the coordinator
+            # Get the response from the coordinator, passing previous findings for context
             response = coordinator.process_user_query(
                 query=user_input,
                 namespace=st.session_state.get('selected_namespace', 'default'),
-                context=st.session_state.get('selected_context', None)
+                context=st.session_state.get('selected_context', None),
+                previous_findings=st.session_state.get('accumulated_findings', [])
             )
             
             # Format and add assistant response to history
@@ -481,6 +492,22 @@ def render_chatbot_interface(
                         investigation_id=investigation_id,
                         agent_type='coordinator',
                         findings=response.get('findings', {})
+                    )
+                    
+            # Accumulate key findings for context in future queries
+            if 'key_findings' in response and isinstance(response['key_findings'], list):
+                # Add new key findings to our accumulated findings
+                st.session_state.accumulated_findings.extend(response['key_findings'])
+                
+                # Keep the list to a reasonable size (last 20 findings)
+                if len(st.session_state.accumulated_findings) > 20:
+                    st.session_state.accumulated_findings = st.session_state.accumulated_findings[-20:]
+                    
+                # Persist findings to database if available
+                if investigation_id and db_handler:
+                    db_handler.update_investigation(
+                        investigation_id=investigation_id,
+                        data={'accumulated_findings': st.session_state.accumulated_findings}
                     )
             
             # Generate a summary based on the first question if it's a new investigation
@@ -1043,15 +1070,33 @@ def render_chatbot_interface(
                             # Just add the selected query to the input box
                             st.session_state.user_input = query
                         
-                        # Update suggestions based on the action taken
+                        # Update suggestions based on the action taken, passing accumulated findings
                         update_response = coordinator.update_suggestions_after_action(
                             previous_suggestions=st.session_state.current_suggestions,
                             selected_suggestion_index=i,
                             namespace=st.session_state.get('selected_namespace', 'default'),
-                            context=st.session_state.get('selected_context', None)
+                            context=st.session_state.get('selected_context', None),
+                            previous_findings=st.session_state.get('accumulated_findings', [])
                         )
                         
                         if update_response:
+                            # Add updated suggestions
                             add_suggestions(update_response.get('suggestions', []), investigation_id, db_handler)
+                            
+                            # Process key findings from the response
+                            if 'key_findings' in update_response and isinstance(update_response['key_findings'], list):
+                                # Add new key findings to accumulated findings
+                                st.session_state.accumulated_findings.extend(update_response['key_findings'])
+                                
+                                # Keep list size reasonable (last 20 findings)
+                                if len(st.session_state.accumulated_findings) > 20:
+                                    st.session_state.accumulated_findings = st.session_state.accumulated_findings[-20:]
+                                
+                                # Persist findings to database if available
+                                if investigation_id and db_handler:
+                                    db_handler.update_investigation(
+                                        investigation_id=investigation_id,
+                                        data={'accumulated_findings': st.session_state.accumulated_findings}
+                                    )
                         
                         st.rerun()
